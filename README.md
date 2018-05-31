@@ -3,12 +3,9 @@
 
 ## 主要功能
 
-### 添加用户及 SSH 配置
-可选择添加用户，以及是否自定义配置 `SSH`。如选择是，按照提示「傻瓜」式操作就好。
-
-### git/zsh 等安装、vim 升级
-
-### MySQL/PHP/Python3/Redis/Nodejs/Tomcat/Nginx/ikev2 等服务可选择安装
+* 添加用户及 SSH 配置。可选择添加用户，以及是否自定义配置 `SSH`。如选择是，按照提示「傻瓜」式操作就好。
+* git/zsh 等安装、vim 升级
+* MySQL/PHP/Python3/Redis/Nodejs/Tomcat/Nginx/ikev2 等服务可选择安装
 
 ## 工具说明
 
@@ -18,6 +15,6 @@
 * 提供了一个简单的管理工具 `pnmp`
 
 ## TODO
-[ ] 站点目录自定义更改
-[ ] 管理工具自定义命名
-[ ] 选择安装是否 [shellMonitor](https://github.com/zsenliao/shellMonitor)
+* [ ] 站点目录自定义更改
+* [ ] 管理工具自定义命名
+* [ ] 选择安装是否 [shellMonitor](https://github.com/zsenliao/shellMonitor)
