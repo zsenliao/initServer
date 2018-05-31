@@ -1,0 +1,487 @@
+#!/bin/bash
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+export PATH
+export LE_WORKING_DIR="/root/.acme.sh"
+
+arg1=$1
+arg2=$2
+
+color_text() {
+    echo -e " \e[0;$2m$1\e[0m"
+}
+
+echo_red() {
+    echo $(color_text "$1" "31")
+}
+
+echo_green() {
+    echo $(color_text "$1" "32")
+}
+
+echo_yellow() {
+    echo $(color_text "$1" "33")
+}
+
+echo_blue() {
+    echo $(color_text "$1" "34")
+}
+
+# Check if user is root
+if [ $(id -u) != "0" ]; then
+    echo_red "Error: You must be root to run this script!"
+    exit 1
+fi
+
+server_start() {
+    echo_blue "正在启动服务..."
+    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx start || echo_red "Nginx 未安装"
+    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld start || echo_red "MySQL 未安装"
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm start || echo_red "PHP 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat start || echo_red "Tomcat 未安装"
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis start || echo_red "Redis 未安装"
+}
+
+server_stop() {
+    echo_blue "正在停止服务..."
+    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx stop || echo_red "Nginx 未安装"
+    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld stop || echo_red "MySQL 未安装"
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm stop || echo_red "PHP 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat stop || echo_red "Tomcat 未安装"
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis stop || echo_red "Redis 未安装"
+}
+
+server_reload() {
+    echo_blue "正在重启服务..."
+    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx reload || echo_red "Nginx 未安装"
+    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld reload || echo_red "MySQL 未安装"
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm reload || echo_red "PHP 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat reload || echo_red "Tomcat 未安装"
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis reload || echo_red "Redis 未安装"
+}
+
+server_restart() {
+    echo_blue "正在重启服务..."
+    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx restart || echo_red "Nginx 未安装"
+    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld restart || echo_red "MySQL 未安装"
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm restart || echo_red "PHP 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat restart || echo_red "Tomcat 未安装"
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis restart || echo_red "Redis 未安装"
+}
+
+server_test() {
+    /etc/init.d/nginx configtest
+    /etc/init.d/php-fpm configtest
+}
+
+server_kill() {
+    echo "正在退出服务..."
+    killall nginx
+    killall mysqld
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/php-fpm force-quit || echo_red "PHP 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat kill || echo_red "Tomcat 未安装"
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis kill || echo_red "Redis 未安装"
+    echo_green "done."
+}
+
+server_status() {
+    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx status || echo_red "Nginx 未安装"
+    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld status || echo_red "MySQL 未安装"
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm status || echo_red "PHP 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat status || echo_red "Tomcat 未安装"
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis status || echo_red "Redis 未安装"
+}
+
+add_vhost() {
+    domain=""
+    while :;do
+        echo_yellow "请输入网站域名"
+        read -r -p "如 zsen.club: " domain
+        if [ "${domain}" != "" ]; then
+            if [ -f "/home/wwwconf/nginx/${domain}.conf" ]; then
+                echo_red "网站 ${domain} 已经存在，请重新输入！"
+                exit 1
+            else
+                echo_blue "新添加的网站: ${domain}"
+            fi
+            break
+        else
+            echo_red "要添加的网站域名不能为空！"
+        fi
+    done
+
+    echo_yellow "是否绑定更多域名(如不绑定请直接回车)？"
+    read -r -p "多个域名请用半角空格隔开: " moredomain
+    if [ "${moredomain}" != "" ]; then
+        echo_blue "绑定的更多域名: ${moredomain}"
+    fi
+
+    vhostdir="/home/wwwroot/${domain}"
+    echo_yellow "请输入网站目录(如不更改请直接回车)"
+    read -r -p "默认目录 /home/wwwroot/${domain}: " vhostdir
+    if [ "${vhostdir}" == "" ]; then
+        vhostdir="/home/wwwroot/${domain}"
+    fi
+    echo_blue "网站目录: ${vhostdir}"
+
+    echo_yellow "是否启用 uWSGI(Python)? (y/n) "
+    read -r -p "是(Y)/否(N): " uwsgi
+    if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
+        echo_blue "启用 uWSGI(Python)"
+        cat >"/home/wwwconf/uwsgi/${domain}.ini"<<EOF
+[uwsgi]
+chdir=${vhostdir}
+uid=nobody
+gid=nobody
+module=wsgi:app
+callable=app
+socket=/tmp/${domain}.uwsgi.sock
+wsgi-file=server.py
+master=true
+workers=5
+processes=4
+threads=2
+pidfile=/tmp/${domain}.uwsgi.pid
+vacuum=true
+thunder-lock=true
+harakiri=30
+post-buffering=4096
+daemonize=/home/wwwlogs/${domain}.uwsgi.log
+EOF
+    else
+        echo_blue "禁用 uWSGI(Python)"
+    fi
+
+    echo_yellow "是否启用 PHP? (y/n) "
+    read -r -p "是(Y)/否(N): " phpfpm
+
+    echo_yellow "是否启用 Tomcat(JSP)? (y/n) "
+    read -r -p "是(Y)/否(N): " tomcat
+
+    echo_yellow "是否启用网站日志? (y/n) "
+    read -r -p "启用(Y)/禁用(N): " access_log
+    if [[ "${access_log}" == "n" || "${access_log}" == "" ]]; then
+        echo_blue "禁用网站日志"
+        al="access_log off;"
+    else
+        echo_yellow "请输入日志名"
+        read -r -p "默认 ${domain}.log: " al_name
+        if [ "${al_name}" == "" ]; then
+            al_name="${domain}"
+        fi
+        al="access_log                  /home/wwwlogs/${al_name}.log;"
+        echo_blue "网站日志: /home/wwwlogs/${al_name}.log"
+    fi
+
+    echo ""
+    echo_blue "请按任意键开始新建网站..."
+    OLDCONFIG=`stty -g`
+    stty -icanon -echo min 1 time 0
+    dd count=1 2>/dev/null
+    stty ${OLDCONFIG}
+
+    echo_blue "创建网站目录..."
+    mkdir -p ${vhostdir}
+    if [ "${access_log}" == "y" ]; then
+        touch /home/wwwlogs/${al_name}.log
+    fi
+    mkdir -p /home/wwwroot/challenges
+    chown -R nobody:nobody /home/wwwroot/challenges
+    chmod -R 777 /home/wwwroot/challenges
+
+    echo_blue "设置网站目录权限..."
+    chmod -R 755 ${vhostdir}
+    chown -R nobody:nobody ${vhostdir}
+
+    mkdir -p /home/wwwcert/scts
+    chown -R nobody:nobody /home/wwwcert/scts
+
+    if [ "${moredomain}" != "" ]; then
+        moredomain_conf=" ${moredomain}"
+        DAMIN="-d ${domain}"$(echo ${moredomain} | sed "s/ / -d&/g" | sed "s/^/ -d &/g")
+    else
+        moredomain_conf=""
+        DAMIN="-d ${domain}"
+    fi
+
+    if [ -f /home/wwwconf/nginx/*.conf ]; then
+        LISTEN="listen                      443;"
+    else
+        LISTEN="listen                      443 ssl http2 fastopen=3 reuseport;"
+    fi
+
+    echo_blue "写入网站配置文件..."
+    cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
+server
+    {
+        ${LISTEN}
+
+        server_name                 ${domain}${moredomain_conf};
+        server_tokens               off;
+
+        ssl_ct                      on;
+        ssl_ct_static_scts          /home/wwwcert/scts;
+
+        # 中间证书 + 站点证书
+        ssl_certificate             /home/wwwcert/${domain}/fullchain.pem;
+        # 创建 CSR 文件时用的密钥
+        ssl_certificate_key         /home/wwwcert/${domain}/${domain}.key;
+
+        ssl_dhparam                 /home/wwwcert/${domain}/dhparams.pem;
+
+        # https://github.com/cloudflare/sslconfig/blob/master/conf
+        #ssl_ciphers                EECDH+CHACHA20:EECDH+CHACHA20-draft:EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:EECDH+3DES:RSA+3DES:!MD5;
+
+        # 如果启用了 RSA + ECDSA 双证书，Cipher Suite 可以参考以下配置：
+        ssl_ciphers                TLS13-AES-256-GCM-SHA384:TLS13-CHACHA20-POLY1305-SHA256:TLS13-AES-128-GCM-SHA256:TLS13-AES-128-CCM-8-SHA256:TLS13-AES-128-CCM-SHA256:EECDH+CHACHA20:EECDH+CHACHA20-draft:EECDH+ECDSA+AES128:EECDH+aRSA+AES128:RSA+AES128:EECDH+ECDSA+AES256:EECDH+aRSA+AES256:RSA+AES256:EECDH+ECDSA+3DES:EECDH+aRSA+3DES:RSA+3DES:!MD5;
+
+        ssl_prefer_server_ciphers  on;
+
+        ssl_protocols              TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+
+        ssl_session_cache          shared:SSL:50m;
+        ssl_session_timeout        1d;
+
+        ssl_session_tickets        on;
+
+        # 单机部署可以不指定 ssl_session_ticket_key
+        ssl_session_ticket_key     /home/wwwcert/${domain}/session_ticket.key;
+
+        ssl_stapling               on;
+        ssl_stapling_verify        on;
+
+        # 根证书 + 中间证书
+        # https://imququ.com/post/why-can-not-turn-on-ocsp-stapling.html
+        ssl_trusted_certificate    /home/wwwcert/${domain}/cert.pem;
+
+        add_header                 Strict-Transport-Security "max-age=63072000; includeSubdomains; preload";
+
+        resolver                   114.114.114.114 valid=300s;
+        resolver_timeout           10s;
+
+        ${al}
+
+        if ( \$request_method !~ ^(GET|HEAD|POST|OPTIONS)\$ ) {
+            return                 444;
+        }
+
+        # 安装证书时的验证目录
+        location ^~ /.well-known/acme-challenge/ {
+            alias            /home/wwwroot/challenges/;
+        }
+
+        if ( \$host != '${domain}' ) {
+            rewrite          ^/(.*)\$  https://${domain}/\$1 permanent;
+        }
+
+        index index.html index.htm index.php;
+        root  ${vhostdir};
+        #error_page   404   /404.html;
+
+        location ^~ /static/ {
+            root             ${vhostdir};
+            add_header       Access-Control-Allow-Origin *;
+            add_header       Strict-Transport-Security "max-age=63072000; includeSubdomains; preload";     
+            expires          max;
+        }
+
+        location ~ .*\\.(gif|jpg|jpeg|png|js|css)\$ {
+            add_header       Access-Control-Allow-Origin *;
+            add_header       Strict-Transport-Security "max-age=63072000; includeSubdomains; preload";
+            expires          max;
+        }
+
+        location ~ /(images|static|uploads|downloads)/.*\\.(php|php5)?$ {
+            deny all;
+        }
+EOF
+    if [[ "${phpfpm}" == "y" || "${phpfpm}" == "Y" ]]; then
+cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
+
+        location ~ [^/]\\.php(/|$) {
+            #try_files               \$uri =404;
+            fastcgi_pass            unix:/tmp/php-cgi.sock;
+            #fastcgi_pass            127.0.0.1:9000;
+            fastcgi_index           index.php;
+            fastcgi_param           SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+            include                 fastcgi.conf;
+        }
+
+EOF
+    fi
+
+    if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
+cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
+
+        location / {
+            include                 uwsgi_params;  # 导入一个Nginx模块他是用来和uWSGI进行通讯的
+            uwsgi_connect_timeout   30;  # 设置连接uWSGI超时时间
+            uwsgi_pass              unix:/tmp/${domain}.uwsgi.sock;  # 指定uwsgi的sock文件所有动态请求就会直接丢给他
+        }
+
+EOF
+    fi
+
+    if [[ "${tomcat}" == "y" || "${tomcat}" == "Y" ]]; then
+cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
+
+        location ~ [^/]\\.[jsp|do|action|jspx](/|$) {
+            proxy_pass              http://127.0.0.1:8080;
+            proxy_redirect          off;
+            proxy_set_header        X-Real-IP       \$remote_addr;
+            proxy_set_header        X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header        Host            \$host;
+            proxy_set_header        Referer         \$http_referer;
+            proxy_set_header        Cookie          \$http_cookie;
+
+            client_max_body_size        10m;    # 允许客户端请求的最大单文件字节数。
+            client_body_buffer_size     128k;   # 缓冲区代理缓冲用户端请求的最大字节数。
+            proxy_connect_timeout       90;     # Nginx跟后端服务器连接超时时间。
+            proxy_read_timeout          90;     # 连接成功后，后端服务器响应时间。
+            proxy_buffer_size           4k;     # 设置代理服务器保存用户头信息的缓冲区大小。
+            proxy_buffers               6 32k;  # proxy_buffers缓冲区。
+            proxy_busy_buffers_size     64k;    # 高负荷下缓冲大小。
+            proxy_temp_file_write_size  64k;    # 设定缓存文件夹大小
+        }
+
+EOF
+    fi
+
+cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
+        location ~ /\\. {
+            deny all;
+        }
+    }
+
+server
+    {
+        listen            80;
+        server_name       ${domain}${moredomain_conf};
+        server_tokens     off;
+
+        access_log        /dev/null;
+
+        if (\$request_method !~ ^(GET|HEAD|POST)\$ ) {
+            return        444;
+        }
+
+        # 安装证书时的验证目录
+        #location ^~ /.well-known/acme-challenge/ {
+        #    alias /home/ssl/.well-known/acme-challenge/;
+        #}
+        location ^~ /.well-known/acme-challenge/ {
+            alias         /home/wwwroot/challenges/;
+            try_files     \$uri =404;
+        }
+
+        location / {
+            rewrite       ^/(.*)\$ https://${domain}/\$1 permanent;
+        }
+    }
+EOF
+
+    /etc/init.d/nginx stop
+
+    mkdir -p /home/wwwcert/${domain}
+    openssl dhparam -out /home/wwwcert/${domain}/dhparams.pem 2048
+    openssl rand 48 > /home/wwwcert/${domain}/session_ticket.key
+    /root/.acme.sh/acme.sh --issue ${DAMIN} --standalone
+    /root/.acme.sh/acme.sh --installcert ${DAMIN} \
+        --cert-file /home/wwwcert/${domain}/cert.pem \
+        --key-file /home/wwwcert/${domain}/${domain}.key \
+        --fullchain-file /home/wwwcert/${domain}/fullchain.pem \
+        --reloadcmd  "service nginx force-reload"
+
+    echo_blue "测试网站配置文件..."
+    /usr/local/nginx/sbin/nginx -t
+    echo_blue "重启 Nginx 服务..."
+    /usr/local/nginx/sbin/nginx -s reload
+
+    echo "================================================"
+    echo_yellow "网站信息:"
+    echo_green "域名: ${domain}"
+    echo_green "目录: ${vhostdir}"
+    if [ "${access_log}" == "n" ]; then
+        echo_green "日志: 禁用"
+    else
+        echo_green "日志: 启用"
+    fi
+    echo "================================================"
+}
+
+list_vhost() {
+    echo_blue "Nginx Virtualhost list:"
+    ls /home/wwwconf/nginx/ | grep ".conf$" | sed 's/.conf//g'
+}
+
+del_vhost() {
+    echo_yellow "请手动删除 /home/wwwconf/ 目录下对应的网站配置文件和 /home/wwwroot/ 目录下的网站程序文件"
+}
+
+vhost_menu() {
+    case "$1" in
+        [aA][dD][dD])
+            add_vhost
+            ;;
+        [lL][iI][sS][tT])
+            list_vhost
+            ;;
+        [dD][eE][lL])
+            del_vhost
+            ;;
+        [eE][xX][iI][tT])
+            exit 1
+            ;;
+        *)
+            echo_yellow "Usage: server vhost {add|list|del}"
+            exit 1
+            ;;
+    esac
+}
+
+case "${arg1}" in
+    start)
+        server_start
+        ;;
+    stop)
+        server_stop
+        ;;
+    restart)
+        server_restart
+        ;;
+    reload)
+        server_reload
+        ;;
+    kill)
+        server_kill
+        ;;
+    status)
+        server_status
+        ;;
+    test)
+        server_test
+        ;;
+    nginx)
+        /etc/init.d/nginx ${arg2}
+        ;;
+    mysql)
+        /etc/init.d/mysqld ${arg2}
+        ;;
+    php-fpm)
+        /etc/init.d/php-fpm ${arg2}
+        ;;
+    redis)
+        /etc/init.d/redis ${arg2}
+        ;;
+    tomcat)
+        /etc/init.d/tomcat ${arg2}
+        ;;
+    vhost)
+        vhost_menu ${arg2}
+        ;;
+    *)
+        echo_yellow "Usage: pnmp {start|stop|reload|restart|kill|status|test}"
+        echo_yellow "Usage: pnmp {nginx|mysql|php-fpm|tomcat|redis} {start|stop|reload|restart|kill|status}"
+        echo_yellow "Usage: pnmp vhost {add|list|del}"
+        ;;
+esac
+exit
