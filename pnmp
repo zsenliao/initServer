@@ -26,6 +26,14 @@ echo_blue() {
     echo $(color_text "$1" "34")
 }
 
+echo_suc() {
+    echo "$1: " $(color_text "$1" "32")
+}
+
+echo_err() {
+    echo "$1: " $(color_text "$1" "34")
+}
+
 # Check if user is root
 if [ $(id -u) != "0" ]; then
     echo_red "Error: You must be root to run this script!"
@@ -37,7 +45,6 @@ server_start() {
     [ -x /etc/init.d/nginx ] && /etc/init.d/nginx start || echo_red "Nginx 未安装"
     [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld start || echo_red "MySQL 未安装"
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm start || echo_red "PHP 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat start || echo_red "Tomcat 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis start || echo_red "Redis 未安装"
 }
 
@@ -46,7 +53,6 @@ server_stop() {
     [ -x /etc/init.d/nginx ] && /etc/init.d/nginx stop || echo_red "Nginx 未安装"
     [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld stop || echo_red "MySQL 未安装"
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm stop || echo_red "PHP 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat stop || echo_red "Tomcat 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis stop || echo_red "Redis 未安装"
 }
 
@@ -55,7 +61,6 @@ server_reload() {
     [ -x /etc/init.d/nginx ] && /etc/init.d/nginx reload || echo_red "Nginx 未安装"
     [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld reload || echo_red "MySQL 未安装"
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm reload || echo_red "PHP 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat reload || echo_red "Tomcat 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis reload || echo_red "Redis 未安装"
 }
 
@@ -64,7 +69,6 @@ server_restart() {
     [ -x /etc/init.d/nginx ] && /etc/init.d/nginx restart || echo_red "Nginx 未安装"
     [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld restart || echo_red "MySQL 未安装"
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm restart || echo_red "PHP 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat restart || echo_red "Tomcat 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis restart || echo_red "Redis 未安装"
 }
 
@@ -77,8 +81,7 @@ server_kill() {
     echo "正在退出服务..."
     killall nginx
     killall mysqld
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/php-fpm force-quit || echo_red "PHP 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat kill || echo_red "Tomcat 未安装"
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm force-quit || echo_red "PHP 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis kill || echo_red "Redis 未安装"
     echo_green "done."
 }
@@ -87,7 +90,6 @@ server_status() {
     [ -x /etc/init.d/nginx ] && /etc/init.d/nginx status || echo_red "Nginx 未安装"
     [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld status || echo_red "MySQL 未安装"
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm status || echo_red "PHP 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat status || echo_red "Tomcat 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis status || echo_red "Redis 未安装"
 }
 
@@ -127,25 +129,41 @@ add_vhost() {
     read -r -p "是(Y)/否(N): " uwsgi
     if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
         echo_blue "启用 uWSGI(Python)"
+        echo_yellow "Python 入口文件(类似 app.py)"
+        read -r -p "请输入: " appname
+        if [ "${appname}" == "" ]; then
+            appname="app.py"
+        fi
+        echo_yellow "Python 系统目录(目录后需要加上 / 结尾)"
+        read -r -p "请输入: " appdir
+
         cat >"/home/wwwconf/uwsgi/${domain}.ini"<<EOF
 [uwsgi]
+module=wsgi:app
+master=true
+workers=5
+processes=5
+
+socket=/tmp/${domain}.uwsgi.sock
+pidfile=/tmp/${domain}.uwsgi.pid
+chmod-socket=660
+vacuum=true
+
+die-on-term=true
+
 chdir=${vhostdir}
 uid=nobody
 gid=nobody
-module=wsgi:app
 callable=app
-socket=/tmp/${domain}.uwsgi.sock
-wsgi-file=server.py
-master=true
-workers=5
-processes=4
+
+wsgi-file=${appname}
 threads=2
-pidfile=/tmp/${domain}.uwsgi.pid
-vacuum=true
+
 thunder-lock=true
 harakiri=30
 post-buffering=4096
 daemonize=/home/wwwlogs/${domain}.uwsgi.log
+#logto=/home/wwwlogs/${domain}.uwsgi.log
 EOF
     else
         echo_blue "禁用 uWSGI(Python)"
@@ -153,9 +171,6 @@ EOF
 
     echo_yellow "是否启用 PHP? (y/n) "
     read -r -p "是(Y)/否(N): " phpfpm
-
-    echo_yellow "是否启用 Tomcat(JSP)? (y/n) "
-    read -r -p "是(Y)/否(N): " tomcat
 
     echo_yellow "是否启用网站日志? (y/n) "
     read -r -p "启用(Y)/禁用(N): " access_log
@@ -312,35 +327,10 @@ EOF
     if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
 cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
 
-        location / {
+        location /${appdir} {
             include                 uwsgi_params;  # 导入一个Nginx模块他是用来和uWSGI进行通讯的
             uwsgi_connect_timeout   30;  # 设置连接uWSGI超时时间
             uwsgi_pass              unix:/tmp/${domain}.uwsgi.sock;  # 指定uwsgi的sock文件所有动态请求就会直接丢给他
-        }
-
-EOF
-    fi
-
-    if [[ "${tomcat}" == "y" || "${tomcat}" == "Y" ]]; then
-cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
-
-        location ~ [^/]\\.[jsp|do|action|jspx](/|$) {
-            proxy_pass              http://127.0.0.1:8080;
-            proxy_redirect          off;
-            proxy_set_header        X-Real-IP       \$remote_addr;
-            proxy_set_header        X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header        Host            \$host;
-            proxy_set_header        Referer         \$http_referer;
-            proxy_set_header        Cookie          \$http_cookie;
-
-            client_max_body_size        10m;    # 允许客户端请求的最大单文件字节数。
-            client_body_buffer_size     128k;   # 缓冲区代理缓冲用户端请求的最大字节数。
-            proxy_connect_timeout       90;     # Nginx跟后端服务器连接超时时间。
-            proxy_read_timeout          90;     # 连接成功后，后端服务器响应时间。
-            proxy_buffer_size           4k;     # 设置代理服务器保存用户头信息的缓冲区大小。
-            proxy_buffers               6 32k;  # proxy_buffers缓冲区。
-            proxy_busy_buffers_size     64k;    # 高负荷下缓冲大小。
-            proxy_temp_file_write_size  64k;    # 设定缓存文件夹大小
         }
 
 EOF
@@ -398,12 +388,24 @@ EOF
 
     echo "================================================"
     echo_yellow "网站信息:"
-    echo_green "域名: ${domain}"
-    echo_green "目录: ${vhostdir}"
-    if [ "${access_log}" == "n" ]; then
-        echo_green "日志: 禁用"
+    echo_suc "域名" ${domain}
+    echo_suc "目录" ${vhostdir}
+    if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
+        echo_suc "Python" "启用"
+        echo_suc "Python 入口文件" ${appname}
+        echo_suc "Python 系统目录" ${appdir}
     else
-        echo_green "日志: 启用"
+        echo_err "Python" "禁用"
+    fi
+    if [[ "${phpfpm}" == "y" || "${phpfpm}" == "Y" ]]; then
+        echo_suc "PHP" "启用"
+    else
+        echo_err "PHP" "禁用"
+    fi
+    if [ "${access_log}" == "n" ]; then
+        echo_err "日志" "禁用"
+    else
+        echo_suc "日志" "启用"
     fi
     echo "================================================"
 }
@@ -472,15 +474,12 @@ case "${arg1}" in
     redis)
         /etc/init.d/redis ${arg2}
         ;;
-    tomcat)
-        /etc/init.d/tomcat ${arg2}
-        ;;
     vhost)
         vhost_menu ${arg2}
         ;;
     *)
         echo_yellow "Usage: pnmp {start|stop|reload|restart|kill|status|test}"
-        echo_yellow "Usage: pnmp {nginx|mysql|php-fpm|tomcat|redis} {start|stop|reload|restart|kill|status}"
+        echo_yellow "Usage: pnmp {nginx|mysql|php-fpm|redis} {start|stop|reload|restart|kill|status}"
         echo_yellow "Usage: pnmp vhost {add|list|del}"
         ;;
 esac

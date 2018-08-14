@@ -61,7 +61,7 @@ echo_blue() {
     echo $(color_text "$1" "34")
 }
 
-isn_begin() {
+ins_begin() {
     MODE=$1
     echo $(color_text "[+] 安装 $1..." "34")
 }
@@ -193,7 +193,7 @@ ssh_setting() {
 }
 
 install_git() {
-    isn_begin "git"
+    ins_begin "git"
     yum install -y autoconf zlib-devel curl-devel openssl-devel perl cpio expat-devel gettext-devel openssl zlib gcc perl-ExtUtils-MakeMaker
 
     wget -c https://github.com/git/git/archive/master.tar.gz -O git-master.tar.gz
@@ -209,7 +209,7 @@ install_git() {
 }
 
 install_zsh() {
-    isn_begin "zsh"
+    ins_begin "zsh"
     yum install -y zsh
     chsh -s /bin/zsh
 
@@ -249,7 +249,7 @@ install_vim() {
     mkdir -p ~/.vim/syntax
 
     wget -O ~/.vim/syntax/nginx.vim http://www.vim.org/scripts/download_script.php?src_id=19394
-    echo "au BufRead,BufNewFile /home/wwwconf/nginx/*,/usr/local/nginx/conf/* if &ft == '' | setfiletype nginx | endif " >> ~/.vim/filetype.vim  
+    echo "au BufRead,BufNewFile ${INSHOME}/wwwconf/nginx/*,/usr/local/nginx/conf/* if &ft == '' | setfiletype nginx | endif " >> ~/.vim/filetype.vim  
 
     wget -O ini.vim.tar.gz https://www.vim.org/scripts/download_script.php?src_id=10629
     tar zxf ini.vim.tar.gz && mv vim-ini-*/ini.vim ~/.vim/syntax/ini.vim
@@ -269,7 +269,7 @@ install_vim() {
 }
 
 install_cmake() {
-    isn_begin "CMake"
+    ins_begin "CMake"
     rpm -q cmake
     yum remove -y cmake
     yum install -y gcc gcc-c++
@@ -286,7 +286,7 @@ install_cmake() {
 }
 
 install_brotli() {
-    isn_begin "brotli"
+    ins_begin "brotli"
     yum install -y autoconf libtool automake
 
     git clone https://github.com/bagder/libbrotli
@@ -300,7 +300,7 @@ install_brotli() {
 }
 
 install_pcre() {
-    isn_begin "pcre"
+    ins_begin "pcre"
     wget -c https://ftp.pcre.org/pub/pcre/pcre-8.42.tar.gz
     tar zxf pcre-8.42.tar.gz
     cd pcre-8.42
@@ -326,7 +326,7 @@ install_libzip() {
 }
 
 install_start-stop-daemon() {
-    isn_begin "start-stop-daemon"
+    ins_begin "start-stop-daemon"
     yum install -y ncurses-devel
     wget -c http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_1.16.18.tar.xz -O start-stop-daemon_1.16.18.tar.xz
     mkdir start-stop-daemon_1.16.18
@@ -345,7 +345,7 @@ install_acme() {
     if [ -f "/root/.acme.sh/acme.sh.env" ]; then
         echo_green "acme.sh 已安装，当前版本：$(acme.sh --version)"
     else
-        isn_begin "acme.sh"
+        ins_begin "acme.sh"
         yum install -y socat
 
         curl https://get.acme.sh | sh
@@ -360,12 +360,12 @@ install_acme() {
 }
 
 install_python3() {
-    isn_begin "Python3"
+    ins_begin "Python3"
     yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel
 
-    wget -c --no-check-certificate https://www.python.org/ftp/python/3.6.5/Python-3.6.5.tgz
-    tar xf Python-3.6.5.tgz
-    cd Python-3.6.5
+    wget -c --no-check-certificate https://www.python.org/ftp/python/3.6.6/Python-3.6.6.tgz
+    tar xf Python-3.6.6.tgz
+    cd Python-3.6.6
 
     ./configure --prefix=/usr/local/python3.6 --enable-optimizations
     make && make install
@@ -400,11 +400,11 @@ install_python3() {
 }
 
 install_uwsgi() {
-    isn_begin "uwsgi"
+    ins_begin "uwsgi"
     pip3 install uwsgi
 
-    mkdir -p /home/wwwconf/uwsgi
-    chown -R nobody:nobody /home/wwwconf
+    mkdir -p ${INSHOME}/wwwconf/uwsgi
+    chown -R nobody:nobody ${INSHOME}/wwwconf
 
     cat > /etc/init.d/uwsgi<<EOF
 #!/bin/bash
@@ -430,7 +430,7 @@ install_uwsgi() {
 DESC="uwsgi daemon"
 NAME=uwsgi
 DAEMON=/usr/local/python3.6/bin/uwsgi
-CONFIGDIR=/home/wwwconf/uwsgi
+CONFIGDIR=${INSHOME}/wwwconf/uwsgi
 PIDDIR=/tmp
 
 start() {
@@ -614,7 +614,7 @@ install_ikev2() {
 }
 
 install_nodejs() {
-    isn_begin "Nodejs"
+    ins_begin "Nodejs"
     yum install -y epel-release
     yum install -y nodejs
     ins_end "node"
@@ -630,13 +630,13 @@ install_mysql() {
     # wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
     # rpm -Uvh mysql57-community-release-el7-11.noarch.rpm
     # yum install -y mysql-community-server
-    isn_begin "MySQL"
+    ins_begin "MySQL"
 
     echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
     read -r -p "密码: " DBROOTPWD
     if [ "${DBROOTPWD}" = "" ]; then
         echo_red "没有输入密码，将采用默认密码。"
-        DBROOTPWD="zsenClub#$RANDOM"
+        DBROOTPWD="zsen@Club#$RANDOM"
     fi
     echo_green "MySQL ROOT 用户密码为(请记下来): ${DBROOTPWD}"
 
@@ -645,7 +645,7 @@ install_mysql() {
     yum remove -y mysql-server mysql mysql-libs
     yum install -y ncurses-devel gcc gcc-c++ bison
     yum -y remove boost-*
-    rm -rf /home/data/mysql
+    rm -rf ${INSHOME}/database/mysql
     rm -rf /usr/local/mysql
 
     wget -c https://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz/download -O boost_1_59_0.tar.gz
@@ -659,8 +659,8 @@ install_mysql() {
     rm -f /etc/my.cnf
     groupadd mysql
     useradd -r -g mysql -s /bin/false mysql
-    mkdir -p /home/data/mysql
-    chown -R mysql:mysql /home/data/mysql
+    mkdir -p ${INSHOME}/database/mysql
+    chown -R mysql:mysql ${INSHOME}/database/mysql
 
     if [[ ${MemTotal} -lt 1024 ]]; then
         echo_blue "内存过低，创建 SWAP 交换区..."
@@ -671,7 +671,7 @@ install_mysql() {
         # echo "/var/swapfile swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
     fi
 
-    cmake . -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/usr/local/boost -DMYSQL_DATADIR=/home/data/mysql -DDEFAULT_CHARSET=utf8mb4 -DDEFAULT_COLLATION=utf8mb4_general_ci
+    cmake . -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/usr/local/boost -DMYSQL_DATADIR=${INSHOME}/database/mysql -DDEFAULT_CHARSET=utf8mb4 -DDEFAULT_COLLATION=utf8mb4_general_ci
     make && make install
 
     if [[ ${MemTotal} -lt 1024 ]]; then
@@ -697,7 +697,7 @@ default-character-set = utf8
 [mysqld]
 port        = 3306
 socket      = /tmp/mysql.sock
-datadir     = /home/data/mysql
+datadir     = ${INSHOME}/database/mysql
 skip-external-locking
 key_buffer_size = 16M
 max_allowed_packet = 1M
@@ -726,9 +726,9 @@ early-plugin-load = ""
 
 default_storage_engine = InnoDB
 innodb_file_per_table = 1
-innodb_data_home_dir = /home/data/mysql
+innodb_data_home_dir = ${INSHOME}/database/mysql
 innodb_data_file_path = ibdata1:10M:autoextend
-innodb_log_group_home_dir = /home/data/mysql
+innodb_log_group_home_dir = ${INSHOME}/database/mysql
 innodb_buffer_pool_size = 16M
 innodb_log_file_size = 5M
 innodb_log_buffer_size = 8M
@@ -833,7 +833,7 @@ EOF
         sed -i "s#^performance_schema_max_table_instances.*#performance_schema_max_table_instances = 10000#" /etc/my.cnf
     fi
 
-    /usr/local/mysql/bin/mysqld --initialize-insecure --basedir=/usr/local/mysql --datadir=/home/data/mysql --user=mysql
+    /usr/local/mysql/bin/mysqld --initialize-insecure --basedir=/usr/local/mysql --datadir=${INSHOME}/database/mysql --user=mysql
     # --initialize 会生成一个随机密码(~/.mysql_secret)，--initialize-insecure 不会生成密码
 
     cat > /etc/ld.so.conf.d/mysql.conf<<EOF
@@ -917,7 +917,7 @@ EOF
 }
 
 install_nginx() {
-    isn_begin "Nginx"
+    ins_begin "Nginx"
     rpm -qa | grep httpd
     rpm -e httpd httpd-tools --nodeps
     yum remove -y httpd*
@@ -974,21 +974,21 @@ install_nginx() {
     ln -sf /usr/local/nginx/sbin/nginx /usr/local/bin/nginx
     rm -f /usr/local/nginx/conf/nginx.conf
 
-    mkdir -p /home/wwwlogs
-    chmod 777 /home/wwwlogs
+    mkdir -p ${INSHOME}/wwwlogs
+    chmod 777 ${INSHOME}/wwwlogs
 
-    mkdir -p /home/wwwroot
-    chmod +w /home/wwwroot
-    chown -R nobody:nobody /home/wwwroot
+    mkdir -p ${INSHOME}/wwwroot
+    chmod +w ${INSHOME}/wwwroot
+    chown -R nobody:nobody ${INSHOME}/wwwroot
 
-    mkdir -p /home/wwwconf/nginx
-    chown -R nobody:nobody /home/wwwconf
-    chmod +w /home/wwwconf
+    mkdir -p ${INSHOME}/wwwconf/nginx
+    chown -R nobody:nobody ${INSHOME}/wwwconf
+    chmod +w ${INSHOME}/wwwconf
 
     cat > /usr/local/nginx/conf/nginx.conf<<EOF
 worker_processes auto;
 
-error_log  /home/wwwlogs/nginx_error.log  crit;
+error_log  ${INSHOME}/wwwlogs/nginx_error.log  crit;
 
 pid        /usr/local/nginx/logs/nginx.pid;
 
@@ -1058,7 +1058,7 @@ http
             rewrite ^ http://www.gov.cn/ permanent;
         }
 
-        include /home/wwwconf/nginx/*.conf;
+        include ${INSHOME}/wwwconf/nginx/*.conf;
     }
 EOF
 
@@ -1166,175 +1166,8 @@ EOF
     cd ..
 }
 
-install_tomcat() {
-    isn_begin "Java"
-    if [[ $(uname -m) == "x86_64" ]]; then
-        wget -c --no-cookie --header "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/8u171-b11/512cd62ec5174c3487ac17c61aaa89e8/jdk-8u171-linux-x64.rpm -O jdk-8u171-linux.rpm
-    else
-        wget -c --no-cookie --header "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/8u171-b11/512cd62ec5174c3487ac17c61aaa89e8/jdk-8u171-linux-i586.rpm -O jdk-8u171-linux.rpm
-    fi
-
-    rpm -ivh jdk-8u171-linux.rpm
-    echo "export JAVA_HOME=/usr/java/default" >> /etc/profile
-    echo "export CLASSPATH=.:\$JAVA_HOME/jre/lib/rt.jar:\$JAVA_HOME/lib/dt.jar:\$JAVA_HOME/lib/tools.jar" >> /etc/profile
-    echo "export PATH=\$PATH:\$JAVA_HOME/bin" >> /etc/profile
-    source /etc/profile
-
-    local version=$(java -version)
-    echo $(color_text "[√] $MODE 安装成功! 当前版本：$version" "32")
-
-    isn_begin "Tomcat"
-    wget -c http://mirrors.tuna.tsinghua.edu.cn/apache/tomcat/tomcat-9/v9.0.8/bin/apache-tomcat-9.0.8.tar.gz
-    tar zxf apache-tomcat-9.0.8.tar.gz
-    cp apache-tomcat-9.0.8 /usr/local/tomcat
-
-    cd apache-tomcat-9.0.8/bin/
-    tar zxf commons-daemon-native.tar.gz
-    cd commons-daemon-1.1.0-native-src/unix
-    ./configure
-    make
-    cp jsvc /usr/local/tomcat/bin/
-    cd ${CUR_DIR}/src
-
-    mkdir -p /home/wwwjava/ROOT
-
-    wget -c https://gist.githubusercontent.com/luowei/75a5092fd071c32dff6c/raw/e505ae2df5401fa762889778d2007a570b58e96b/penv.jsp
-    sed -i 's#gb2312#utf-8#g' penv.jsp
-    iconv -t utf-8 -f gb2312 -c penv.jsp > "__t.jsp"
-    mv "__t.jsp" /home/wwwjava/ROOT/
-    rm -f "__t.jsp"
-
-    groupadd tomcat
-    useradd -r -g tomcat -s /bin/false tomcat
-    chown -R tomcat:tomcat /home/wwwjava
-    chmod -R 777 /usr/local/tomcat/logs
-
-    sed -i 's#<Connector port="8080" protocol="HTTP/1.1"#<Connector port="8080" protocol="HTTP/1.1" maxThreads="1000"#g' /usr/local/tomcat/conf/server.xml
-    sed -i 's#connectionTimeout="20000"#connectionTimeout="30000" minSpareThreads="100" maxSpareThreads="200" acceptCount="900"#g' /usr/local/tomcat/conf/server.xml
-    sed -i 's#appBase="webapps"#appBase="/home/wwwjava"#g' /usr/local/tomcat/conf/server.xml
-    sed -i 's#directory="logs"#directory="/home/wwwlogs"#g' /usr/local/tomcat/conf/server.xml
-    sed -i 's#prefix="localhost_access_log" suffix=".txt"#prefix="tomcat_access" suffix=".log"#g' /usr/local/tomcat/conf/server.xml
-
-    cat > /etc/init.d/tomcat<<EOF
-#!/bin/bash
-#
-# tomcat     This shell script takes care of starting and stopping Tomcat
-#
-# chkconfig: - 80 20
-#
-### BEGIN INIT INFO
-# Provides: tomcat
-# Required-Start: $network $syslog
-# Required-Stop: $network $syslog
-# Default-Start:
-# Default-Stop:
-# Short-Description: start and stop tomcat
-### END INIT INFO
-
-TOMCAT_USER=tomcat
-TOMCAT_HOME=/usr/local/tomcat
-CATALINA_HOME=/usr/local/tomcat
-DESC=Tomcat
-SHUTDOWN_WAIT=20
-
-# JSVC_OPTS="-jvm server"
-# JAVA_OPTS="-server -Xms2048M -Xmx2048M -Xverify:none -XX:PermSize=512M -XX:MaxPermSize=2048m -XX:NewSize=512m -Xmn1024m -XX:+UseConcMarkSweepGC -XX:+UseParNewGC -XX:+CMSParallelRemarkEnabled -XX:+UseCMSCompactAtFullCollection -XX:CMSFullGCsBeforeCompaction=5 -XX:+CMSClassUnloadingEnabled"
-
-tomcat_pid() {
-    echo \`ps aux | grep org.apache.catalina.startup.Bootstrap | grep -v grep | awk '{ print \$2 }'\`
-}
-
-start() {
-    pid=\$(tomcat_pid)
-    if [ -n "\$pid" ]; then
-        echo "\$DESC is running (pid: \$pid)"
-    else
-        echo -n "Starting \$DESC: "
-        \$TOMCAT_HOME/bin/daemon.sh start
-        if [ \$? -eq 0 ]; then
-            echo -e "\\033[32m[OK]\\033[0m"
-        else
-            echo -e "\\033[31m[Fail]\\033[0m"
-        fi
-    fi
-}
-
-status() {
-    echo -n "\$DESC status: "
-    pid=\$(tomcat_pid)
-    if [ -n "\$pid" ]; then
-        echo " is running with pid: \$pid"
-    else
-        echo " is not running"
-    fi
-}
-
-stop() {
-    pid=\$(tomcat_pid)
-    if [ -n "\$pid" ]; then
-        echo -n "Stopping \$DESC: "
-        \$TOMCAT_HOME/bin/daemon.sh stop
-
-        let kwait=\$SHUTDOWN_WAIT
-        count=0
-        count_by=5
-        until [ \`ps -p \$pid | grep -c \$pid\` = '0' ] || [ \$count -gt \$kwait ]
-        do
-            echo "Waiting for processes to exit. Timeout before we kill the pid: \${count}/\${kwait}"
-            sleep \$count_by
-            let count=\$count+\$count_by;
-        done
-
-        if [ \$count -gt \$kwait ]; then
-            echo "Killing processes which didn't stop after \$SHUTDOWN_WAIT seconds"
-            kill -9 \$pid
-        fi
-    else
-        echo "\$DESC is not running"
-    fi
-}
-
-case \$1 in
-    start)
-        start
-        ;;
-    stop)
-        stop
-        ;;
-    restart|reload)
-        stop
-        start
-        ;;
-    status)
-        status
-        ;;
-    kill)
-        echo "Kill \$DESC: "
-	    kill -9 \$(tomcat_pid)
-        pid=\$(tomcat_pid)
-        if [ -n "\$pid" ]; then
-            echo -e "\\033[31m[Fail]\\033[0m"
-        else
-            echo -e "\\033[32m[OK]\\033[0m"
-        fi
-        ;;
-    *)
-        echo "Usage: \$0 {start|stop|kill|status|restart}"
-    ;;
-esac
-
-exit 0
-EOF
-    chgrp -R tomcat /usr/local/tomcat/.
-    chmod +x /etc/init.d/tomcat
-    chkconfig --add tomcat
-    chkconfig tomcat on
-
-    echo_green "Tomcat 安装成功！"
-}
-
 install_php() {
-    isn_begin "PHP"
+    ins_begin "PHP"
     yum -y remove php*
     rpm -qa | grep php
     rpm -e php-mysql php-cli php-gd php-common php --nodeps
@@ -1420,7 +1253,7 @@ EOF
     sed -i 's/max_execution_time =.*/max_execution_time = 60/g' /usr/local/php/etc/php.ini
     sed -i 's/expose_php = On/expose_php = Off/g' /usr/local/php/etc/php.ini
     sed -i 's/disable_functions =.*/disable_functions = passthru,exec,system,chroot,chgrp,chown,shell_exec,proc_open,proc_get_status,popen,ini_alter,ini_restore,dl,openlog,syslog,readlink,symlink,popepassthru,stream_socket_server/g' /usr/local/php/etc/php.ini
-    sed -i 's#;error_log = php_errors.log#error_log = /home/wwwlogs/php_errors.log#g' /usr/local/php/etc/php.ini
+    sed -i 's#;error_log = php_errors.log#error_log = ${INSHOME}/wwwlogs/php_errors.log#g' /usr/local/php/etc/php.ini
 
     if [[ ${MemTotal} -gt 1024 && ${MemTotal} -le 2048 ]]; then
         sed -i 's/memory_limit =.*/memory_limit = 256/g' /usr/local/php/etc/php.ini
@@ -1467,7 +1300,7 @@ EOF
     cat >/usr/local/php/etc/php-fpm.conf<<EOF
 [global]
 pid = /usr/local/php/var/run/php-fpm.pid
-error_log = /home/wwwlogs/php-fpm.log
+error_log = ${INSHOME}/wwwlogs/php-fpm.log
 log_level = notice
 
 [www]
@@ -1487,7 +1320,7 @@ pm.max_spare_servers = 6
 pm.max_requests = 500
 request_terminate_timeout = 100
 request_slowlog_timeout = 0
-slowlog = /home/wwwlogs/php-fpm-slow.log
+slowlog = ${INSHOME}/wwwlogs/php-fpm-slow.log
 EOF
 
     if [[ ${MemTotal} -gt 1024 && ${MemTotal} -le 2048 ]]; then
@@ -1547,7 +1380,7 @@ EOF
         cd ..
     fi
 
-    sed -i 's#;open_basedir =#open_basedir = /home/wwwroot#g' /usr/local/php/etc/php.ini
+    sed -i 's#;open_basedir =#open_basedir = ${INSHOME}/wwwroot#g' /usr/local/php/etc/php.ini
 
     ins_end "php"
 }
@@ -1558,7 +1391,7 @@ install_composer() {
 }
 
 install_redis() {
-    isn_begin "Redis"
+    ins_begin "Redis"
 
     echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
     read -r -p "密码: " REDISPWD
@@ -1571,8 +1404,8 @@ install_redis() {
     groupadd redis
     useradd -r -g redis -s /bin/false redis
     mkdir -p /usr/local/redis/{etc,run}
-    mkdir -p /home/data/redis
-    chown -R redis:redis /home/data/redis
+    mkdir -p ${INSHOME}/database/redis
+    chown -R redis:redis ${INSHOME}/database/redis
 
     wget -c http://download.redis.io/releases/redis-4.0.9.tar.gz
     tar zxf redis-4.0.9.tar.gz
@@ -1584,8 +1417,8 @@ install_redis() {
     sed -i 's/^# bind 127.0.0.1/bind 127.0.0.1/g' /usr/local/redis/etc/redis.conf
     sed -i 's#^pidfile /var/run/redis_6379.pid#pidfile /usr/local/redis/run/redis.pid#g' /usr/local/redis/etc/redis.conf
     sed -i "s/^# requirepass.*/requirepass ${REDISPWD}/g" /usr/local/redis/etc/redis.conf
-    sed -i 's#logfile ""#logfile /home/wwwlogs/redis.log#g' /usr/local/redis/etc/redis.conf
-    sed -i 's#dir ./#dir /home/data/redis/#g' /usr/local/redis/etc/redis.conf
+    sed -i 's#logfile ""#logfile ${INSHOME}/wwwlogs/redis.log#g' /usr/local/redis/etc/redis.conf
+    sed -i 's#dir ./#dir ${INSHOME}/database/redis/#g' /usr/local/redis/etc/redis.conf
 
     cat > /etc/rc.d/init.d/redis<<EOF
 #! /bin/bash
@@ -1706,14 +1539,20 @@ EOF
 }
 
 register_management-tool() {
-    wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/pnmp
-    chmod +x /usr/local/bin/pnmp
+    echo_yellow "是否要自定义管理工具名称? "
+    read -r -p "是(Y)/否(N): " MYNAME
+    if [ -z "${MYNAME}" ]; then
+        MYNAME="pnmp"
+    fi
+    wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
+    sed -i 's|/home/|${INSHOME}/|g' /usr/local/bin/${MYNAME}
+    chmod +x /usr/local/bin/${MYNAME}
 
     if [[ ${NGINX} = "y" || ${NGINX} = "Y" ]]; then
         echo_yellow "是否要添加默认站点? "
         read -r -p "是(Y)/否(N): " ADDHOST
         if [[ ${ADDHOST} = "y" || ${ADDHOST} = "Y" ]]; then
-            pnmp vhost add
+            ${MYNAME} vhost add
         fi
     fi
 }
@@ -1738,23 +1577,22 @@ clean_install() {
     fi
 
     echo_green "服务器环境安装配置成功！"
-    echo_blue "可以通过 pnmp vhost add 来添加网站"
+    echo_blue "可以通过 ${MYNAME} vhost add 来添加网站"
     echo_blue "环境管理命令："
-    pnmp
+    ${MYNAME}
     echo " "
-    echo_blue "网站程序目录：/home/wwwroot"
-    echo_blue "Tomcat 程序目录：/home/wwwjava"
-    echo_blue "MySQL 数据库目录：/home/data/mysql"
-    echo_blue "Redis 数据库目录：/home/data/redis"
-    echo_blue "日志目录：/home/wwwlogs"
-    echo_blue "配置文件目录：/home/wwwconf"
+    echo_blue "网站程序目录：${INSHOME}/wwwroot"
+    echo_blue "MySQL 数据库目录：${INSHOME}/database/mysql"
+    echo_blue "Redis 数据库目录：${INSHOME}/database/redis"
+    echo_blue "日志目录：${INSHOME}/wwwlogs"
+    echo_blue "配置文件目录：${INSHOME}/wwwconf"
     echo " "
     echo_blue "MySQL ROOT 密码：${DBROOTPWD}"
     echo_blue "Redis 安全密码：${REDISPWD}"
     echo_red "请牢记以上密码！"
     echo " "
 
-    pnmp status
+    ${MYNAME} status
     if [ -s /bin/ss ]; then
         ss -ntl
     else
@@ -1776,6 +1614,14 @@ if [[ ${OSNAME} != "CentOS" ]]; then
     echo_red "此脚本仅适用于 CentOS 系统！"
     exit 1
 fi
+
+echo_yellow "请输入安装目录（比如 /home 或 /data），默认 /data"
+read -r -p "请输入: " INSHOME
+if [ -z "${INSHOME}" ]; then
+    INSHOME=/data
+fi
+echo_blue "系统安装目录：${INSHOME}"
+mkdir -p ${INSHOME}
 
 mkdir -p ${CUR_DIR}/src
 cd ${CUR_DIR}/src
@@ -1862,12 +1708,6 @@ show_ver "node --version" "Nodejs"
 read -r -p "是(Y)/否(N): " INSNODEJS
 if [[ ${INSNODEJS} = "y" || ${INSNODEJS} = "Y" ]]; then
     install_nodejs
-fi
-
-show_ver "/usr/local/tomcat/bin/version.sh | grep 'Server number'" "Tomcat"
-read -r -p "是(Y)/否(N): " INSTOMCAT
-if [[ ${INSTOMCAT} = "y" || ${INSTOMCAT} = "Y" ]]; then
-    install_tomcat
 fi
 
 show_ver "nginx -v" "Nginx"
