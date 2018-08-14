@@ -233,15 +233,22 @@ install_zsh() {
 
 install_vim() {
     echo_blue "[+] 升级 vim..."
-    yum remove -y vim
     yum install -y ncurses-devel
 
     wget -c https://github.com/vim/vim/archive/master.tar.gz -O vim-master.tar.gz
-    tar zxf vim-master.tar.gz
-    cd vim-master/src
+    if [ $? -eq 0 ]; then
+        yum remove -y vim
+        tar zxf vim-master.tar.gz
+        cd vim-master/src
+        make && make install
 
-    make && make install
+        echo_green "[√] vim 升级成功!"
+        cd ../..
+    else
+        echo_red "[!] vim 安装源下载失败!"
+    fi
 
+    echo_blue "[+] 安装 vim 插件..."
     curl https://raw.githubusercontent.com/wklken/vim-for-server/master/vimrc > ~/.vimrc
     echo 'alias vi="vim"' >> ~/.zshrc
     source ~/.zshrc
@@ -251,21 +258,18 @@ install_vim() {
     wget -O ~/.vim/syntax/nginx.vim http://www.vim.org/scripts/download_script.php?src_id=19394
     echo "au BufRead,BufNewFile ${INSHOME}/wwwconf/nginx/*,/usr/local/nginx/conf/* if &ft == '' | setfiletype nginx | endif " >> ~/.vim/filetype.vim  
 
-    wget -O ini.vim.tar.gz https://www.vim.org/scripts/download_script.php?src_id=10629
-    tar zxf ini.vim.tar.gz && mv vim-ini-*/ini.vim ~/.vim/syntax/ini.vim
-    rm -rf vim-ini-* ini.vim.tar.gz
+    wget -O ini.vim.zip https://www.vim.org/scripts/download_script.php?src_id=10629
+    unzip ini.vim.zip && mv vim-ini-*/ini.vim ~/.vim/syntax/ini.vim
+    rm -rf vim-ini-* ini.vim.zip
     echo "au BufNewFile,BufRead *.ini,*/.hgrc,*/.hg/hgrc setf ini" >> ~/.vim/filetype.vim
 
     wget -O php.vim.tar.gz https://www.vim.org/scripts/download_script.php?src_id=8651
-    tar zxf php.vim.tar.gz && mv syntax/php.vim ~/.vim/syntax/ini.vim
+    tar zxf php.vim.tar.gz && mv syntax/php.vim ~/.vim/syntax/php.vim
     rm -rf syntax php.vim.tar.gz
     echo "au BufNewFile,BufRead *.php setf php" >> ~/.vim/filetype.vim
 
     wget -O ~/.vim/syntax/python.wim https://www.vim.org/scripts/download_script.php?src_id=21056
     echo "au BufNewFile,BufRead *.py setf python" >> ~/.vim/filetype.vim
-
-    echo_green "[√] vim 升级成功!"
-    cd ../..
 }
 
 install_cmake() {
