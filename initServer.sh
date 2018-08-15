@@ -410,6 +410,8 @@ install_uwsgi() {
     mkdir -p ${INSHOME}/wwwconf/uwsgi
     chown -R nobody:nobody ${INSHOME}/wwwconf
 
+    TMPCONFDIR=${INSHOME}/wwwconf/uwsgi/
+
     cat > /etc/init.d/uwsgi<<EOF
 #!/bin/bash
 # chkconfig: 2345 55 25
@@ -431,76 +433,76 @@ install_uwsgi() {
 # Ver:1.1
 # Description: script can loads multiple configs now.
 
-DESC="uwsgi daemon"
+DESC="Python uWSGI"
 NAME=uwsgi
 DAEMON=/usr/local/python3.6/bin/uwsgi
 CONFIGDIR=${INSHOME}/wwwconf/uwsgi
 PIDDIR=/tmp
 
+iniList=\$(ls \${CONFIGDIR}/*.ini)
+
 start() {
-    local iniList=\$(ls \${CONFIGDIR}/*.ini)
+    echo "Starting \$DESC: "
     for i in \${iniList[@]}
     do
-        local SiteName=\${i:20:0-4}
-        ps aux | grep \$i
-        if [ \$? -eq 0 ];then
-            echo "\${SiteName} already running"
+        SiteName=\${i:${#TMPCONFDIR}:0-4}
+        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
+        if [ ! -z \$pid ]; then
+            echo -e "\\t\${SiteName}: \\033[33m[already running]\\033[0m"
         else
-            \$DAEMON --ini \${CONFIGDIR}/\$i
-            echo "\${SiteName} started"
+            \$DAEMON --ini \${i} 2>/null
+            echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
         fi
     done
 }
 
 stop() {
-    local iniList=\$(ls \${CONFIGDIR}/*.ini)
+    echo "Stopping \$DESC: "
     for i in \${iniList[@]}
     do
-        local SiteName=\${i:20:0-4}
-        ps aux | grep \$i
-        if [ \$? -eq 0 ];then
-            \$DAEMON --stop \${PIDDIR}\${i}.uwsgi.pid
-            echo "\${SiteName} stoped"
+        SiteName=\${i:${#TMPCONFDIR}:0-4}
+        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
+        if [ ! -z \$pid ]; then
+            \$DAEMON --stop \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/null
+            echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
         else
-            echo "\${SiteName} not running"
+            echo -e "\\t\${SiteName}: \\033[33m[not running]\\033[0m"
         fi
     done
 }
-  
+
 reload() {
-    local iniList=\$(ls \${CONFIGDIR}/*.ini)
+    echo "Reloading \$DESC: "
     for i in \${iniList[@]}
     do
-        local SiteName=\${i:20:0-4}
-        ps aux | grep \$i
-        if [ \$? -eq 0 ];then
-            \$DAEMON --reload \${PIDDIR}\${i}.uwsgi.pid
-            echo "\${SiteName} reloaded"
+        SiteName=\${i:${#TMPCONFDIR}:0-4}
+        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
+        if [ ! -z \$pid ]; then
+            \$DAEMON --reload \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/null
+            echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
         else
-            echo "\${SiteName} not running"
+            echo -e "\\t\${SiteName}: \\033[33m[not running]\\033[0m"
         fi
     done
 }
-  
+
 status() {
-    ps aux | grep \$DAEMON
-    case "\$?" in
-        0)
-            echo " is running"
-            ;;
-        1)
-            echo " is not running"
-            ;;
-        4)
-            echo " unable to determine status"
-            ;;
-    esac
+    pid=\$(ps aux | grep \$DAEMON | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
+    if [ ! -z \$pid ]; then
+        echo -e "\${DESC}: is running"
+        for i in \${pid[@]}
+        do
+            echo -e "\\trunning application: \${i:${#TMPCONFDIR}:0-4}"
+        done
+    else
+        echo -e "\${DESC}: not application running"
+    fi
 }
 
 kill() {
     # killall -9 uwsgi
     echo "shutting down uWSGI service ......"
-    pids=\`ps aux | grep uwsgi | grep -v grep | awk '{ print $2 }'\`
+    pids=\$(ps aux | grep uwsgi | grep -v grep | awk '{ print $2 }')
     for pid in \$pids[@]
     do 
         # echo \$pid | xargs kill -9
@@ -508,8 +510,7 @@ kill() {
     done
 }
 
-set -e
-[ -x \"$DAEMON" ] || exit 0
+[ -x "\$DAEMON" ] || exit 0
   
 case "\$1" in
     status)
@@ -532,7 +533,7 @@ case "\$1" in
         kill
         ;;
     *)
-        echo "Usage: \$0 {start|stop|restart|reload|kill|status}" >&2
+        echo "Usage: \$0 {start|stop|restart|reload|kill|status}"
         ;;
 esac
 
@@ -543,7 +544,7 @@ EOF
     chkconfig uwsgi on
     service uwsgi start
 
-    ins_end "uwsgi"
+    ins_end "/usr/local/python3.6/bin/uwsgi"
 }
 
 install_ikev2() {
@@ -1564,6 +1565,7 @@ register_management-tool() {
     fi
     wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
     sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/${MYNAME}
+    sed -i "s|/pnmp/|${MYNAME}/|g" /usr/local/bin/${MYNAME}
     chmod +x /usr/local/bin/${MYNAME}
 
     if [[ ${NGINX} = "y" || ${NGINX} = "Y" ]]; then
@@ -1701,7 +1703,7 @@ fi
 show_ver "python3 --version" "Python3"
 read -r -p "是(Y)/否(N): " INSPYTHON3
 if [[ ${INSPYTHON3} = "y" || ${INSPYTHON3} = "Y" ]]; then
-    install_python3
+    #install_python3
     install_uwsgi
 fi
 
