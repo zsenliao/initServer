@@ -88,7 +88,11 @@ server_kill() {
 
 server_status() {
     [ -x /etc/init.d/nginx ] && /etc/init.d/nginx status || echo_red "Nginx 未安装"
-    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld status || echo_red "MySQL 未安装"
+    if [ -x /etc/init.d/mysqld ]; then
+        /etc/init.d/mysqld status
+    else
+        echo_red "MySQL 未安装"
+    fi
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm status || echo_red "PHP 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis status || echo_red "Redis 未安装"
 }

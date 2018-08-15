@@ -37,7 +37,7 @@ check_hosts() {
 
 disable_selinux() {
     if [ -s /etc/selinux/config ]; then
-        sed -i 's/^SELINUX=.*/SELINUX=disabled/g' /etc/selinux/config
+        sed -i "s/^SELINUX=.*/SELINUX=disabled/g" /etc/selinux/config
     fi
 }
 
@@ -1249,45 +1249,45 @@ EOF
 
     # php extensions
     echo_blue "Modify php.ini......"
-    sed -i 's/post_max_size =.*/post_max_size = 50M/g' /usr/local/php/etc/php.ini
-    sed -i 's/upload_max_filesize =.*/upload_max_filesize = 50M/g' /usr/local/php/etc/php.ini
-    sed -i 's/;date.timezone =.*/date.timezone = PRC/g' /usr/local/php/etc/php.ini
-    sed -i 's/short_open_tag =.*/short_open_tag = On/g' /usr/local/php/etc/php.ini
-    sed -i 's/;cgi.fix_pathinfo=.*/cgi.fix_pathinfo=0/g' /usr/local/php/etc/php.ini
-    sed -i 's/max_execution_time =.*/max_execution_time = 60/g' /usr/local/php/etc/php.ini
-    sed -i 's/expose_php = On/expose_php = Off/g' /usr/local/php/etc/php.ini
-    sed -i 's/disable_functions =.*/disable_functions = passthru,exec,system,chroot,chgrp,chown,shell_exec,proc_open,proc_get_status,popen,ini_alter,ini_restore,dl,openlog,syslog,readlink,symlink,popepassthru,stream_socket_server/g' /usr/local/php/etc/php.ini
-    sed -i 's#;error_log = php_errors.log#error_log = ${INSHOME}/wwwlogs/php_errors.log#g' /usr/local/php/etc/php.ini
+    sed -i "s/post_max_size =.*/post_max_size = 50M/g" /usr/local/php/etc/php.ini
+    sed -i "s/upload_max_filesize =.*/upload_max_filesize = 50M/g" /usr/local/php/etc/php.ini
+    sed -i "s/;date.timezone =.*/date.timezone = PRC/g" /usr/local/php/etc/php.ini
+    sed -i "s/short_open_tag =.*/short_open_tag = On/g" /usr/local/php/etc/php.ini
+    sed -i "s/;cgi.fix_pathinfo=.*/cgi.fix_pathinfo=0/g" /usr/local/php/etc/php.ini
+    sed -i "s/max_execution_time =.*/max_execution_time = 60/g" /usr/local/php/etc/php.ini
+    sed -i "s/expose_php = On/expose_php = Off/g" /usr/local/php/etc/php.ini
+    sed -i "s/disable_functions =.*/disable_functions = passthru,exec,system,chroot,chgrp,chown,shell_exec,proc_open,proc_get_status,popen,ini_alter,ini_restore,dl,openlog,syslog,readlink,symlink,popepassthru,stream_socket_server/g" /usr/local/php/etc/php.ini
+    sed -i "s#;error_log = php_errors.log#error_log = ${INSHOME}/wwwlogs/php_errors.log#g" /usr/local/php/etc/php.ini
 
     if [[ ${MemTotal} -gt 1024 && ${MemTotal} -le 2048 ]]; then
-        sed -i 's/memory_limit =.*/memory_limit = 256/g' /usr/local/php/etc/php.ini
+        sed -i "s/memory_limit =.*/memory_limit = 256/g" /usr/local/php/etc/php.ini
     elif [[ ${MemTotal} -gt 2048 && ${MemTotal} -le 4096 ]]; then
-        sed -i 's/memory_limit =.*/memory_limit = 512/g' /usr/local/php/etc/php.ini
+        sed -i "s/memory_limit =.*/memory_limit = 512/g" /usr/local/php/etc/php.ini
     elif [[ ${MemTotal} -gt 4096 && ${MemTotal} -le 8192 ]]; then
-        sed -i 's/memory_limit =.*/memory_limit = 1024/g' /usr/local/php/etc/php.ini
+        sed -i "s/memory_limit =.*/memory_limit = 1024/g" /usr/local/php/etc/php.ini
     elif [[ ${MemTotal} -gt 8192 && ${MemTotal} -le 16384 ]]; then
-        sed -i 's/memory_limit =.*/memory_limit = 2048/g' /usr/local/php/etc/php.ini
+        sed -i "s/memory_limit =.*/memory_limit = 2048/g" /usr/local/php/etc/php.ini
     elif [[ ${MemTotal} -gt 16384 && ${MemTotal} -le 32768 ]]; then
-        sed -i 's/memory_limit =.*/memory_limit = 4096/g' /usr/local/php/etc/php.ini
+        sed -i "s/memory_limit =.*/memory_limit = 4096/g" /usr/local/php/etc/php.ini
     elif [[ ${MemTotal} -ge 32768 ]]; then
-        sed -i 's/memory_limit =.*/memory_limit = 8192/g' /usr/local/php/etc/php.ini
+        sed -i "s/memory_limit =.*/memory_limit = 8192/g" /usr/local/php/etc/php.ini
     fi
 
     echo_yellow "是否启用 Opcache? "
     read -r -p "是(Y)/否(N): " OPCACHE
     if [[ ${OPCACHE} = "y" || ${OPCACHE} = "Y" ]]; then
-        sed -i 's/;opcache.enable=1/opcache.enable=1/g' /usr/local/php/etc/php.ini
-        sed -i 's/;opcache.enable_cli=1/opcache.enable_cli=1/g' /usr/local/php/etc/php.ini
-        sed -i 's/;opcache.memory_consumption=128/opcache.memory_consumption=192/g' /usr/local/php/etc/php.ini
-        sed -i 's/;opcache.max_accelerated_files=.*/opcache.max_accelerated_files=7963/g' /usr/local/php/etc/php.ini
-        sed -i 's/;opcache.interned_strings_buffer=.*/opcache.interned_strings_buffer=16/g' /usr/local/php/etc/php.ini
-        sed -i 's/;opcache.revalidate_freq=.*/opcache.revalidate_freq=0/g' /usr/local/php/etc/php.ini
+        sed -i "s/;opcache.enable=1/opcache.enable=1/g" /usr/local/php/etc/php.ini
+        sed -i "s/;opcache.enable_cli=1/opcache.enable_cli=1/g" /usr/local/php/etc/php.ini
+        sed -i "s/;opcache.memory_consumption=128/opcache.memory_consumption=192/g" /usr/local/php/etc/php.ini
+        sed -i "s/;opcache.max_accelerated_files=.*/opcache.max_accelerated_files=7963/g" /usr/local/php/etc/php.ini
+        sed -i "s/;opcache.interned_strings_buffer=.*/opcache.interned_strings_buffer=16/g" /usr/local/php/etc/php.ini
+        sed -i "s/;opcache.revalidate_freq=.*/opcache.revalidate_freq=0/g" /usr/local/php/etc/php.ini
         echo "zend_extension=opcache.so" >> /usr/local/php/etc/php.ini
 
         echo_yellow "当前服务器是否生产服务器（如选择是，每次更新 PHP 代码后请重启 php-fpm）? "
         read -r -p "是(Y)/否(N): " PHPPROD
         if [[ ${PHPPROD} = "y" || ${PHPPROD} = "Y" ]]; then
-            sed -i 's/;opcache.validate_timestamps=.*/opcache.validate_timestamps=0/g' /usr/local/php/etc/php.ini
+            sed -i "s/;opcache.validate_timestamps=.*/opcache.validate_timestamps=0/g" /usr/local/php/etc/php.ini
         fi
     fi
 
@@ -1351,6 +1351,9 @@ EOF
 
     echo_blue "Copy php-fpm init.d file..."
     cp sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
+    sed -i "s/echo \" done\"/echo -e \"\\\\033[32m[OK]\\\\033[0m\"/g" /etc/init.d/php-fpm
+    sed -i "s/echo \" failed\"/echo -e \"\\\\033[31m[Fail]\\\\033[0m\"/g" /etc/init.d/php-fpm
+    sed -i "s/echo \" failed. Use force-quit\"/echo -e \"\\\\033[31m[Fail]\\\\033[0m \\\\033[33mUse force-quit\\\\033[0m\"/g" /etc/init.d/php-fpm
     chmod +x /etc/init.d/php-fpm
     chkconfig --add php-fpm
     chkconfig php-fpm on
@@ -1384,7 +1387,7 @@ EOF
         cd ..
     fi
 
-    sed -i 's#;open_basedir =#open_basedir = ${INSHOME}/wwwroot#g' /usr/local/php/etc/php.ini
+    sed -i "s#;open_basedir =#open_basedir = ${INSHOME}/wwwroot#g" /usr/local/php/etc/php.ini
 
     ins_end "php"
 }
@@ -1417,12 +1420,12 @@ install_redis() {
     make && make PREFIX=/usr/local/redis install
 
     cp redis.conf  /usr/local/redis/etc/
-    sed -i 's/daemonize no/daemonize yes/g' /usr/local/redis/etc/redis.conf
-    sed -i 's/^# bind 127.0.0.1/bind 127.0.0.1/g' /usr/local/redis/etc/redis.conf
-    sed -i 's#^pidfile /var/run/redis_6379.pid#pidfile /usr/local/redis/run/redis.pid#g' /usr/local/redis/etc/redis.conf
+    sed -i "s/daemonize no/daemonize yes/g" /usr/local/redis/etc/redis.conf
+    sed -i "s/^# bind 127.0.0.1/bind 127.0.0.1/g" /usr/local/redis/etc/redis.conf
+    sed -i "s#^pidfile /var/run/redis_6379.pid#pidfile /usr/local/redis/run/redis.pid#g" /usr/local/redis/etc/redis.conf
     sed -i "s/^# requirepass.*/requirepass ${REDISPWD}/g" /usr/local/redis/etc/redis.conf
-    sed -i 's#logfile ""#logfile ${INSHOME}/wwwlogs/redis.log#g' /usr/local/redis/etc/redis.conf
-    sed -i 's#dir ./#dir ${INSHOME}/database/redis/#g' /usr/local/redis/etc/redis.conf
+    sed -i "s#logfile ""#logfile ${INSHOME}/wwwlogs/redis.log#g" /usr/local/redis/etc/redis.conf
+    sed -i "s#dir ./#dir ${INSHOME}/database/redis/#g" /usr/local/redis/etc/redis.conf
 
     cat > /etc/rc.d/init.d/redis<<EOF
 #! /bin/bash
@@ -1464,7 +1467,7 @@ start() {
     if [ -n "\$pid" ]; then
         echo "\$DESC is running (pid: \$pid)"
     else
-        echo -e "Starting \$DESC: "
+        echo -n "Starting \$DESC: "
         /bin/su -m -c "cd \$BASEDIR/bin && \$EXEC \$CONF" \$REDIS_USER
         if [ \$? -eq 0 ]; then
             echo -e "\\033[32m[OK]\\033[0m"
@@ -1515,7 +1518,7 @@ case "\$1" in
         status
         ;;
     kill)
-        echo -e "Kill \$DESC: "
+        echo -n "Kill \$DESC: "
         killall redis-server
         pid=\$(redis_pid)
         if [ -n "\$pid" ]; then
@@ -1543,13 +1546,13 @@ EOF
 }
 
 register_management-tool() {
-    echo_yellow "是否要自定义管理工具名称? "
-    read -r -p "是(Y)/否(N): " MYNAME
+    echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
+    read -r -p "请输入管理工具名称: " MYNAME
     if [ -z "${MYNAME}" ]; then
         MYNAME="pnmp"
     fi
     wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
-    sed -i 's|/home/|${INSHOME}/|g' /usr/local/bin/${MYNAME}
+    sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/${MYNAME}
     chmod +x /usr/local/bin/${MYNAME}
 
     if [[ ${NGINX} = "y" || ${NGINX} = "Y" ]]; then
