@@ -138,9 +138,9 @@ add_vhost() {
         if [ "${appname}" == "" ]; then
             appname="app.py"
         fi
-        echo_yellow "Python 系统目录(目录后需要加上 / 结尾)"
+        echo_yellow "Python 系统目录"
         read -r -p "请输入: " appdir_temp
-        appdir = "/${appdir_temp}"
+        appdir="/${appdir_temp}"
 
         cat >"/home/wwwconf/uwsgi/${domain}.ini"<<EOF
 [uwsgi]
@@ -156,7 +156,7 @@ vacuum=true
 
 die-on-term=true
 
-chdir="${vhostdir}${appdir}"
+chdir=${vhostdir}${appdir}
 uid=nobody
 gid=nobody
 callable=app
@@ -439,7 +439,7 @@ vhost_menu() {
             exit 1
             ;;
         *)
-            echo_yellow "Usage: server vhost {add|list|del}"
+            echo_yellow "Usage: pnmp vhost {add|list|del}"
             exit 1
             ;;
     esac
