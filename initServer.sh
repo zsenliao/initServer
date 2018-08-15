@@ -483,25 +483,35 @@ reload() {
 }
   
 status() {
-    ps aux | grep $DAEMON
-    echo
+    ps aux | grep \$DAEMON
+    case "\$?" in
+        0)
+            echo " is running"
+            ;;
+        1)
+            echo " is not running"
+            ;;
+        4)
+            echo " unable to determine status"
+            ;;
+    esac
 }
 
 kill() {
     # killall -9 uwsgi
     echo "shutting down uWSGI service ......"
-    pids=`ps aux | grep uwsgi | grep -v grep | awk '{ print $2 }'`
-    for pid in $pids[@]
+    pids=\`ps aux | grep uwsgi | grep -v grep | awk '{ print $2 }'\`
+    for pid in \$pids[@]
     do 
         # echo \$pid | xargs kill -9
-        `kill -9 \$pid`
+        \`kill -9 \$pid\`
     done
 }
 
 set -e
-[ -x "$DAEMON" ] || exit 0
+[ -x \"$DAEMON" ] || exit 0
   
-case "$1" in
+case "\$1" in
     status)
         status
         ;;
@@ -517,6 +527,7 @@ case "$1" in
     restart)
         stop
         start
+        ;;
     kill)
         kill
         ;;
@@ -1691,6 +1702,7 @@ show_ver "python3 --version" "Python3"
 read -r -p "是(Y)/否(N): " INSPYTHON3
 if [[ ${INSPYTHON3} = "y" || ${INSPYTHON3} = "Y" ]]; then
     install_python3
+    install_uwsgi
 fi
 
 show_ver "redis-server --version" "Redis"
