@@ -447,7 +447,7 @@ start() {
     do
         SiteName=\${i:${#TMPCONFDIR}:0-4}
         pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
-        if [ ! -z \$pid ]; then
+        if [ ! -z "\$pid" ]; then
             echo -e "\\t\${SiteName}: \\033[33m[already running]\\033[0m"
         else
             \$DAEMON --ini \${i} 2>/null
@@ -462,7 +462,7 @@ stop() {
     do
         SiteName=\${i:${#TMPCONFDIR}:0-4}
         pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
-        if [ ! -z \$pid ]; then
+        if [ ! -z "\$pid" ]; then
             \$DAEMON --stop \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/null
             echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
         else
@@ -477,7 +477,7 @@ reload() {
     do
         SiteName=\${i:${#TMPCONFDIR}:0-4}
         pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
-        if [ ! -z \$pid ]; then
+        if [ ! -z "\$pid" ]; then
             \$DAEMON --reload \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/null
             echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
         else
@@ -488,7 +488,7 @@ reload() {
 
 status() {
     pid=\$(ps aux | grep \$DAEMON | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
-    if [ ! -z \$pid ]; then
+    if [ ! -z "\$pid" ]; then
         echo -e "\${DESC}: is running"
         for i in \${pid[@]}
         do
@@ -527,6 +527,7 @@ case "\$1" in
         ;;
     restart)
         stop
+        sleep 3
         start
         ;;
     kill)
