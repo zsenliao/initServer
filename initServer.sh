@@ -1712,7 +1712,7 @@ fi
 show_ver "python3 --version" "Python3"
 read -r -p "是(Y)/否(N): " INSPYTHON3
 if [[ ${INSPYTHON3} = "y" || ${INSPYTHON3} = "Y" ]]; then
-    #install_python3
+    install_python3
     install_uwsgi
 fi
 

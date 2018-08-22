@@ -510,12 +510,15 @@ case "${arg1}" in
     redis)
         /etc/init.d/redis ${arg2}
         ;;
+    uwsgi)
+        /etc/init.d/uwsgi ${arg2}
+        ;;
     vhost)
         vhost_menu ${arg2}
         ;;
     *)
         echo_yellow "Usage: pnmp {start|stop|reload|restart|kill|status|test}"
-        echo_yellow "Usage: pnmp {nginx|mysql|php-fpm|redis} {start|stop|reload|restart|kill|status}"
+        echo_yellow "Usage: pnmp {nginx|mysql|php-fpm|redis|uwsgi} {start|stop|reload|restart|kill|status}"
         echo_yellow "Usage: pnmp vhost {add|list|del}"
         ;;
 esac
