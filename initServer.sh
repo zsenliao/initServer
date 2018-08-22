@@ -186,6 +186,14 @@ ssh_setting() {
     echo_yellow "是否连接成功?"
     read -r -p "成功(Y)/失败(N): " SSHSUSS
     if [[ "${SSHSUSS}" = "n" || "${SSHSUSS}" = "N" ]]; then
+        echo_yellow "是否删除新添加的用户: ${USERNAME}?"
+        read -r -p "是(Y)/否(N): " DELUSER
+        if [[ "${DELUSER}" = "n" || "${DELUSER}" = "N" ]]; then
+            userdel ${USERNAME}
+            rm -rf /home/${USERNAME}
+            echo_red "删除用户成功!"
+        fi
+
         cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
         service sshd restart
         echo_red "已复原 SSH 配置!"
