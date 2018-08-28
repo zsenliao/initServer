@@ -251,7 +251,8 @@ EOF
         DAMIN="-d ${domain}"
     fi
 
-    if [ -f /home/wwwconf/nginx/*.conf ]; then
+    tmpvhost=$(ls /home/wwwconf/nginx/)
+    if [ -n "$tmpvhost" ]; then
         LISTEN="listen                      443;"
     else
         LISTEN="listen                      443 ssl http2 fastopen=3 reuseport;"
