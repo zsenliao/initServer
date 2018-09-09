@@ -325,6 +325,7 @@ install_pcre() {
 }
 
 install_libzip() {
+    yum remove libzip -y
     wget -c https://libzip.org/download/libzip-1.5.1.tar.gz
     tar zxf libzip-1.5.1.tar.gz
     cd libzip-1.5.1
@@ -373,26 +374,26 @@ install_acme() {
 
 install_python3() {
     ins_begin "Python3"
-    yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel
+    yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
 
-    wget -c --no-check-certificate https://www.python.org/ftp/python/3.6.6/Python-3.6.6.tgz
-    tar xf Python-3.6.6.tgz
-    cd Python-3.6.6
+    wget -c --no-check-certificate https://www.python.org/ftp/python/3.7.0/Python-3.7.0.tgz
+    tar xf Python-3.7.0.tgz
+    cd Python-3.7.0
 
-    ./configure --prefix=/usr/local/python3.6 --enable-optimizations
+    ./configure --prefix=/usr/local/python3.7 --enable-optimizations
     make && make install
 
-    ln -sf /usr/local/python3.6/bin/python3 /usr/local/bin/python3
-    ln -sf /usr/local/python3.6/bin/2to3 /usr/local/bin/2to3
-    ln -sf /usr/local/python3.6/bin/idle3 /usr/local/bin/idle3
-    ln -sf /usr/local/python3.6/bin/pydoc3 /usr/local/bin/pydoc3
-    ln -sf /usr/local/python3.6/bin/python3.6-config /usr/local/bin/python3.6-config
-    ln -sf /usr/local/python3.6/bin/python3-config /usr/local/bin/python3-config
-    ln -sf /usr/local/python3.6/bin/pyvenv /usr/local/bin/pyvenv
+    ln -sf /usr/local/python3.7/bin/python3 /usr/local/bin/python3
+    ln -sf /usr/local/python3.7/bin/2to3 /usr/local/bin/2to3
+    ln -sf /usr/local/python3.7/bin/idle3 /usr/local/bin/idle3
+    ln -sf /usr/local/python3.7/bin/pydoc3 /usr/local/bin/pydoc3
+    ln -sf /usr/local/python3.7/bin/python3.7-config /usr/local/bin/python3.7-config
+    ln -sf /usr/local/python3.7/bin/python3-config /usr/local/bin/python3-config
+    ln -sf /usr/local/python3.7/bin/pyvenv /usr/local/bin/pyvenv
 
     curl -O https://bootstrap.pypa.io/get-pip.py
     python3 get-pip.py
-    ln -sf /usr/local/python3.6/bin/pip3 /usr/local/bin/pip3
+    ln -sf /usr/local/python3.7/bin/pip3 /usr/local/bin/pip3
     pip3 install --upgrade pip
 
     echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
@@ -414,6 +415,7 @@ install_python3() {
 install_uwsgi() {
     ins_begin "uwsgi"
     pip3 install uwsgi
+    ln -sf /usr/local/python3.7/bin/uwsgi /usr/local/bin/uwsgi
 
     mkdir -p ${INSHOME}/wwwconf/uwsgi
     chown -R nobody:nobody ${INSHOME}/wwwconf
@@ -443,23 +445,27 @@ install_uwsgi() {
 
 DESC="Python uWSGI"
 NAME=uwsgi
-DAEMON=/usr/local/python3.6/bin/uwsgi
+DAEMON=/usr/local/python3.7/bin/uwsgi
 CONFIGDIR=${INSHOME}/wwwconf/uwsgi
 PIDDIR=/tmp
 
-iniList=\$(ls \${CONFIGDIR}/*.ini)
+iniList=\$(ls \${CONFIGDIR}/*.ini 2>/dev/null)
 
 start() {
     echo "Starting \$DESC: "
     for i in \${iniList[@]}
     do
         SiteName=\${i:${#TMPCONFDIR}:0-4}
-        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
+        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
         if [ ! -z "\$pid" ]; then
             echo -e "\\t\${SiteName}: \\033[33m[already running]\\033[0m"
         else
-            \$DAEMON --ini \${i} 2>/null
-            echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
+            \$DAEMON --ini \${i} 2>/dev/null
+            if [ \$? -eq 0 ]; then
+                echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
+            else
+                echo -e "\\t\${SiteName}: \\033[31m[Fail]\\033[0m"
+            fi
         fi
     done
 }
@@ -469,10 +475,14 @@ stop() {
     for i in \${iniList[@]}
     do
         SiteName=\${i:${#TMPCONFDIR}:0-4}
-        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
+        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
         if [ ! -z "\$pid" ]; then
-            \$DAEMON --stop \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/null
-            echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
+            \$DAEMON --stop \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
+            if [ \$? -eq 0 ]; then
+                echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
+            else
+                echo -e "\\t\${SiteName}: \\033[31m[Fail]\\033[0m"
+            fi
         else
             echo -e "\\t\${SiteName}: \\033[33m[not running]\\033[0m"
         fi
@@ -484,10 +494,14 @@ reload() {
     for i in \${iniList[@]}
     do
         SiteName=\${i:${#TMPCONFDIR}:0-4}
-        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
+        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
         if [ ! -z "\$pid" ]; then
-            \$DAEMON --reload \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/null
-            echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
+            \$DAEMON --reload \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
+            if [ \$? -eq 0 ]; then
+                echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
+            else
+                echo -e "\\t\${SiteName}: \\033[31m[Fail]\\033[0m"
+            fi
         else
             echo -e "\\t\${SiteName}: \\033[33m[not running]\\033[0m"
         fi
@@ -495,15 +509,15 @@ reload() {
 }
 
 status() {
-    pid=\$(ps aux | grep \$DAEMON | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/null)
+    pid=\$(ps aux | grep \$DAEMON | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
     if [ ! -z "\$pid" ]; then
         echo -e "\${DESC}: is running"
         for i in \${pid[@]}
         do
-            echo -e "\\trunning application: \${i:${#TMPCONFDIR}:0-4}"
+            echo -e "\\trunning application: \\033[32m\${i:${#TMPCONFDIR}:0-4}\\033[0m"
         done
     else
-        echo -e "\${DESC}: not application running"
+        echo -e "\${DESC}: \\033[33m[not application running]\\033[0m"
     fi
 }
 
@@ -553,7 +567,7 @@ EOF
     chkconfig uwsgi on
     service uwsgi start
 
-    ins_end "/usr/local/python3.6/bin/uwsgi"
+    ins_end "uwsgi"
 }
 
 install_ikev2() {
@@ -1157,16 +1171,16 @@ case "\$1" in
         start-stop-daemon --status --pidfile \$PIDFILE
         case "\$?" in
             0)
-                echo " is running"
+                echo -e "\\033[32m[is running]\\033[0m"
                 ;;
             1)
-                echo " is not running and the pid file exists"
+                echo -e "\\033[31m[is not running and the pid file exists]\\033[0m"
                 ;;
             3)
-                echo " is not running"
+                echo -e "\\033[33m[is not running]\\033[0m"
                 ;;
             4)
-                echo " unable to determine status"
+                echo -e "\\033[31m[unable to determine status]\\033[0m"
                 ;;
         esac
         ;;
@@ -1208,9 +1222,9 @@ install_php() {
 EOF
     ldconfig
 
-    wget -c http://cn2.php.net/get/php-7.2.4.tar.gz/from/this/mirror -O php-7.2.4.tar.gz
-    tar zxf php-7.2.4.tar.gz
-    cd php-7.2.4
+    wget -c http://cn2.php.net/get/php-7.2.9.tar.gz/from/this/mirror -O php-7.2.9.tar.gz
+    tar zxf php-7.2.9.tar.gz
+    cd php-7.2.9
     ./configure --prefix=/usr/local/php \
                 --with-config-file-path=/usr/local/php/etc \
                 --with-config-file-scan-dir=/usr/local/php/conf.d \
@@ -1222,14 +1236,14 @@ EOF
                 --with-freetype-dir=/usr/local/freetype \
                 --with-jpeg-dir \
                 --with-png-dir \
-                --with-zlib-dir \
+                --with-zlib \
+                --with-libzip \
                 --with-libxml-dir=/usr \
                 --with-curl \
                 --with-gd \
                 --with-openssl \
                 --with-mhash \
                 --with-xmlrpc \
-                --with-libzip \
                 --with-gettext \
                 --with-xsl \
                 --with-pear \
@@ -1255,6 +1269,7 @@ EOF
                 --enable-exif \
                 --enable-session
 
+    #make ZEND_EXTRA_LIBS='-liconv' && make install
     make && make install
 
     ln -sf /usr/local/php/bin/php /usr/local/bin/php
@@ -1485,10 +1500,10 @@ redis_pid() {
 start() {
     pid=\$(redis_pid)
     # if [ -f "\$PIDFILE" ]; then
+    echo -n "Starting \$DESC: "
     if [ -n "\$pid" ]; then
-        echo "\$DESC is running (pid: \$pid)"
+        echo -e "\\033[33m[is running with pid: \$pid]\\033[0m"
     else
-        echo -n "Starting \$DESC: "
         /bin/su -m -c "cd \$BASEDIR/bin && \$EXEC \$CONF" \$REDIS_USER
         if [ \$? -eq 0 ]; then
             echo -e "\\033[32m[OK]\\033[0m"
@@ -1503,16 +1518,16 @@ status() {
     echo -n "\$DESC status: "
     # if [ -f "\$PIDFILE" ]; then
     if [ -n "\$pid" ]; then
-        echo " is running with pid: \$pid"
+        echo -e "\\033[32m[is running with pid: \$pid]\\033[0m"
     else
-        echo " is not running"
+        echo -e "\\033[33m[is not running]\\033[0m"
     fi
 }
 
 stop() {
     pid=\$(redis_pid)
+    echo -n "Stopping \$DESC: "
     if [ -n "\$pid" ]; then
-        echo -n "Stopping \$DESC: "
         \$REDIS_CLI -p \$REDISPORT -a ${REDISPWD} shutdown
         if [ \$? -eq 0 ]; then
             echo -e "\\033[32m[OK]\\033[0m"
@@ -1520,7 +1535,7 @@ stop() {
             echo -e "\\033[31m[Fail]\\033[0m"
         fi
     else
-        echo "\$DESC is not running"
+        echo "\\033[33m[is not running]\\033[0m"
     fi
 }
 
@@ -1533,6 +1548,7 @@ case "\$1" in
         ;;
     restart|reload)
         stop
+        sleep 2
         start
         ;;
     status)
