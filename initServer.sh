@@ -169,6 +169,20 @@ ssh_setting() {
     chmod 700 /home/${USERNAME}/.ssh
     chmod 600 /home/${USERNAME}/.ssh/${FILENAME}
 
+    # 防火墙设置
+    # FIREWALL=$(firewall-cmd --state 2>/dev/null)
+    # if [[ "${FIREWALL}" != "running" ]]; then
+    #     systemctl start firewalld
+    # fi
+    if [[ "${SSHPORT}" != "22" ]]; then
+        echo_blue "正在关闭 SSH 默认端口(22)..."
+        firewall-cmd --permanent --remove-service=ssh
+        echo_blue "正在添加 SSH 连接新端口(${SSHPORT})..."
+        firewall-cmd --zone=public --add-port=${SSHPORT}/tcp --permanent
+        echo_blue "正在重启防火墙"
+        firewall-cmd --reload
+    fi
+
     service sshd restart
     service rsyslog restart
     echo_green "[√] SSH 配置修改成功!"
@@ -1197,6 +1211,12 @@ esac
 
 exit 0
 EOF
+
+    # 添加防火墙端口
+    firewall-cmd --zone=public --add-port=80/tcp --permanent
+    firewall-cmd --zone=public --add-port=443/tcp --permanent
+    firewall-cmd --reload
+
     chmod +x /etc/init.d/nginx
     chkconfig --add nginx
     chkconfig nginx on
@@ -1659,6 +1679,7 @@ if [[ ${OSNAME} != "CentOS" ]]; then
     echo_red "此脚本仅适用于 CentOS 系统！"
     exit 1
 fi
+systemctl start firewalld
 
 echo_yellow "请输入安装目录（比如 /home 或 /data），默认 /data"
 read -r -p "请输入: " INSHOME
@@ -1766,6 +1787,16 @@ echo_yellow "是否安装 ikev2?"
 read -r -p "是(Y)/否(N): " IKEV2
 if [[ ${IKEV2} = "y" || ${IKEV2} = "Y" ]]; then
     install_ikev2
+fi
+
+echo_yellow "是否启用防火墙(默认启用)?"
+read -r -p "是(Y)/否(N): " FIRE
+if [[ ${FIRE} = "n" || ${FIRE} = "N" ]]; then
+    systemctl stop firewalld
+    systemctl disable firewalld
+else
+    systemctl enable firewalld
+    firewall-cmd --list-all
 fi
 
 register_management-tool
