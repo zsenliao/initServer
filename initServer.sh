@@ -85,8 +85,11 @@ show_ver() {
 set_host_name() {
     echo_yellow "[+] 修改 hostname..."
     read -r -p "请输入 hostname: " HOST_NAME
+    sed -i "s/^127.0.0.1 .*/127.0.0.1 ${HOST_NAME}/g" /etc/hosts
     echo "${HOSTIP} ${HOST_NAME}" >> /etc/hosts
     echo "hostname=\"${HOST_NAME}\"" >> /etc/sysconfig/network
+    echo '' > /etc/hostname
+    echo ${HOST_NAME} > /etc/hostname
     /etc/init.d/network restart
     echo_blue "[!] 请检测修改是否生效:"
     cat /etc/hosts
@@ -1680,6 +1683,9 @@ if [[ ${OSNAME} != "CentOS" ]]; then
     exit 1
 fi
 systemctl start firewalld
+
+# 显示磁盘空间
+df -h
 
 echo_yellow "请输入安装目录（比如 /home 或 /data），默认 /data"
 read -r -p "请输入: " INSHOME

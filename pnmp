@@ -31,7 +31,7 @@ echo_suc() {
 }
 
 echo_err() {
-    echo "$1: " $(color_text "$2" "34")
+    echo "$1: " $(color_text "$2" "31")
 }
 
 # Check if user is root
@@ -184,7 +184,7 @@ daemonize=/home/wwwlogs/${domain}.uwsgi.log
 #logto=/home/wwwlogs/${domain}.uwsgi.log
 EOF
     else
-        echo_blue "禁用 uWSGI(Python)"
+        echo_err "uWSGI(Python)" "未安装"
     fi
 
     if [ -x /etc/init.d/php-fpm ]; then
@@ -201,6 +201,7 @@ EOF
             fi
         fi
     else
+        echo_err "PHP" "未安装"
         phpfpm="n"
         phpallowed="n"
     fi
@@ -260,6 +261,29 @@ EOF
 
     echo_blue "写入网站配置文件..."
     cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
+server
+    {
+        listen            80;
+        server_name       ${domain}${moredomain_conf};
+        server_tokens     off;
+
+        access_log        /dev/null;
+
+        if (\$request_method !~ ^(GET|HEAD|POST|OPTIONS)\$ ) {
+            return        444;
+        }
+
+        # 安装证书时的验证目录
+        # location ^~ /.well-known/acme-challenge/ {
+        #     alias         /home/wwwroot/challenges/;
+        #     try_files     \$uri =404;
+        # }
+
+        location / {
+            rewrite       ^/(.*)\$ https://${domain}/\$1 permanent;
+        }
+    }
+
 server
     {
         ${LISTEN}
@@ -374,29 +398,6 @@ EOF
 cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
         location ~ /\\. {
             deny all;
-        }
-    }
-
-server
-    {
-        listen            80;
-        server_name       ${domain}${moredomain_conf};
-        server_tokens     off;
-
-        access_log        /dev/null;
-
-        if (\$request_method !~ ^(GET|HEAD|POST|OPTIONS)\$ ) {
-            return        444;
-        }
-
-        # 安装证书时的验证目录
-        # location ^~ /.well-known/acme-challenge/ {
-        #     alias         /home/wwwroot/challenges/;
-        #     try_files     \$uri =404;
-        # }
-
-        location / {
-            rewrite       ^/(.*)\$ https://${domain}/\$1 permanent;
         }
     }
 EOF
