@@ -238,9 +238,14 @@ install_zsh() {
     yum install -y zsh
     chsh -s /bin/zsh
 
-    echo_blue "[+] 安装 oh my zsh..."
-    wget https://github.com/robbyrussell/oh-my-zsh/raw/master/tools/install.sh -O - | sh
-    sed -i "s/ZSH_THEME=\"robbyrussell\"/ZSH_THEME=\"ys\"/g" ~/.zshrc
+    echo_yellow "是否安装 oh my zsh?"
+    read -r -p "是(Y)/否(N): " INSOHMYZSH
+    if [[ ${INSOHMYZSH} = "y" || ${INSOHMYZSH} = "Y" ]]; then
+        echo_blue "[+] 安装 oh my zsh..."
+        wget https://github.com/robbyrussell/oh-my-zsh/raw/master/tools/install.sh -O - | sh
+        sed -i "s/ZSH_THEME=\"robbyrussell\"/ZSH_THEME=\"ys\"/g" ~/.zshrc
+    fi
+
     echo 'export CLICOLOR=1' >> ~/.zshrc
     echo 'alias ll="ls -alF"' >> ~/.zshrc
     echo 'alias la="ls -A"' >> ~/.zshrc
@@ -311,63 +316,6 @@ install_cmake() {
     make && make install
 
     ins_end "cmake"
-    cd ..
-}
-
-install_brotli() {
-    ins_begin "brotli"
-    yum install -y autoconf libtool automake
-
-    git clone https://github.com/bagder/libbrotli
-    cd libbrotli
-    ./autogen.sh  # 如果提示 error: C source seen but 'CC' is undefined，可以在 configure.ac 最后加上 AC_PROG_CC
-    ./configure
-    make && make install
-
-    ins_end "brotli"
-    cd  ..
-}
-
-install_pcre() {
-    ins_begin "pcre"
-    wget -c https://ftp.pcre.org/pub/pcre/pcre-8.42.tar.gz
-    tar zxf pcre-8.42.tar.gz
-    cd pcre-8.42
-
-    ./configure
-    make && make install
-
-    ins_end "pcre-config"
-    cd ..
-}
-
-install_libzip() {
-    yum remove libzip -y
-    wget -c https://libzip.org/download/libzip-1.5.1.tar.gz
-    tar zxf libzip-1.5.1.tar.gz
-    cd libzip-1.5.1
-
-    mkdir build
-    cd build
-
-    cmake .. && make && make install
-
-    cd ../..
-}
-
-install_start-stop-daemon() {
-    ins_begin "start-stop-daemon"
-    yum install -y ncurses-devel
-    wget -c http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_1.16.18.tar.xz -O start-stop-daemon_1.16.18.tar.xz
-    mkdir start-stop-daemon_1.16.18
-    tar -xf start-stop-daemon_1.16.18.tar.xz -C ./start-stop-daemon_1.16.18 --strip-components 1
-    cd start-stop-daemon_1.16.18
-
-    ./configure
-    make
-    cp utils/start-stop-daemon /usr/local/bin/
-
-    ins_end "start-stop-daemon"
     cd ..
 }
 
@@ -671,9 +619,15 @@ install_ikev2() {
 
 install_nodejs() {
     ins_begin "Nodejs"
-    yum install -y epel-release
-    yum install -y nodejs
+    wget -c https://nodejs.org/dist/v10.13.0/node-v10.13.0-linux-x64.tar.xz
+    tar -xf node-v10.13.0-linux-x64.tar.xz
+    mv node-v10.13.0-linux-x64 /usr/local/node
+    chown root:root -R /usr/local
+    ln -s /usr/local/node/bin/node /use/local/bin/node
+    ln -s /usr/local/node/bin/npm /usr/local/bin/npm
+    ln -s /usr/local/node/bin/npx /usr/local/bin/npx
     ins_end "node"
+    ins_end "npm"
 }
 
 Do_Query() {
@@ -972,6 +926,21 @@ EOF
     cd ..
 }
 
+install_start-stop-daemon() {
+    ins_begin "start-stop-daemon"
+    yum install -y ncurses-devel
+    wget -c http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_1.16.18.tar.xz -O start-stop-daemon_1.16.18.tar.xz
+    mkdir start-stop-daemon_1.16.18
+    tar -xf start-stop-daemon_1.16.18.tar.xz -C ./start-stop-daemon_1.16.18 --strip-components 1
+    cd start-stop-daemon_1.16.18
+
+    ./configure
+    make
+    cp utils/start-stop-daemon /usr/local/bin/
+
+    ins_end "start-stop-daemon"
+    cd ..
+}
 install_nginx() {
     ins_begin "Nginx"
     rpm -qa | grep httpd
@@ -980,48 +949,30 @@ install_nginx() {
     yum install -y build-essential libpcre3 libpcre3-dev zlib1g-dev patch redhat-lsb pcre-devel
     rm -rf /usr/local/nginx
 
-    install_pcre
     install_start-stop-daemon
     install_acme
-    install_brotli
-
-    wget -c https://github.com/grahamedgecombe/nginx-ct/archive/v1.3.2.zip -O nginx-ct.zip
-    unzip nginx-ct.zip
-
-    wget -c http://zlib.net/zlib-1.2.11.tar.gz
-    tar zxf zlib-1.2.11.tar.gz
-
-    # git clone https://github.com/cloudflare/sslconfig.git
-    # wget -c https://github.com/openssl/openssl/archive/OpenSSL_1_0_2k.tar.gz -O openssl.tar.gz
-    # tar zxf openssl.tar.gz
-    # mv openssl-OpenSSL_1_0_2k openssl
-    # cd openssl
-    # patch -p1 < ../sslconfig/patches/openssl__chacha20_poly1305_draft_and_rfc_ossl102j.patch 
-    # cd ..
-    git clone -b tls1.3-draft-18 --single-branch https://github.com/openssl/openssl.git openssl
 
     git clone https://github.com/google/ngx_brotli.git
     cd ngx_brotli
     git submodule update --init
-    cd ..
+    cd ../
 
-    wget -c https://nginx.org/download/nginx-1.13.4.tar.gz
-    tar zxf nginx-1.13.4.tar.gz
-    cd nginx-1.13.4
-    # patch -p1 < ../sslconfig/patches/nginx__1.11.5_dynamic_tls_records.patch
-    sed -i "s/1.13.4/8.8.8.8/g" src/core/nginx.h
+    wget -c  https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz
+    tar xzf OpenSSL_1_1_1.tar.gz
+    mv openssl-OpenSSL_1_1_1 openssl
+
+    wget -c https://nginx.org/download/nginx-1.15.6.tar.gz
+    tar zxf nginx-1.15.6.tar.gz
+    cd nginx-1.15.6
+    sed -i "s/1.15.6/8.8.8.8/g" src/core/nginx.h
 
     ./configure \
         --add-module=../ngx_brotli \
-        --add-module=../nginx-ct-1.3.2 \
-        --with-openssl=../openssl \
-        --with-zlib=../zlib-1.2.11 \
         --with-openssl=../openssl \
         --with-openssl-opt='enable-tls1_3 enable-weak-ssl-ciphers' \
         --with-http_v2_module \
         --with-http_ssl_module \
         --with-http_gzip_static_module \
-        --with-pcre \
         --without-mail_pop3_module \
         --without-mail_imap_module \
         --without-mail_smtp_module
@@ -1230,12 +1181,18 @@ EOF
 
 install_php() {
     ins_begin "PHP"
-    yum -y remove php*
+    yum -y remove php* libzip
     rpm -qa | grep php
     rpm -e php-mysql php-cli php-gd php-common php --nodeps
     yum -y install libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libmcrypt-devel libmcrypt mhash mcrypt libicu-devel
 
-    install_libzip
+    wget -c https://libzip.org/download/libzip-1.5.1.tar.gz
+    tar zxf libzip-1.5.1.tar.gz
+    cd libzip-1.5.1
+    mkdir build
+    cd build
+    cmake .. && make && make install
+    cd ../..
 
     cat > /etc/ld.so.conf.d/php.local.conf<<EOF
 /usr/local/lib64
@@ -1318,18 +1275,10 @@ EOF
     sed -i "s/disable_functions =.*/disable_functions = passthru,exec,system,chroot,chgrp,chown,shell_exec,proc_open,proc_get_status,popen,ini_alter,ini_restore,dl,openlog,syslog,readlink,symlink,popepassthru,stream_socket_server/g" /usr/local/php/etc/php.ini
     sed -i "s#;error_log = php_errors.log#error_log = ${INSHOME}/wwwlogs/php_errors.log#g" /usr/local/php/etc/php.ini
 
-    if [[ ${MemTotal} -gt 1024 && ${MemTotal} -le 2048 ]]; then
-        sed -i "s/memory_limit =.*/memory_limit = 256/g" /usr/local/php/etc/php.ini
-    elif [[ ${MemTotal} -gt 2048 && ${MemTotal} -le 4096 ]]; then
-        sed -i "s/memory_limit =.*/memory_limit = 512/g" /usr/local/php/etc/php.ini
-    elif [[ ${MemTotal} -gt 4096 && ${MemTotal} -le 8192 ]]; then
-        sed -i "s/memory_limit =.*/memory_limit = 1024/g" /usr/local/php/etc/php.ini
-    elif [[ ${MemTotal} -gt 8192 && ${MemTotal} -le 16384 ]]; then
-        sed -i "s/memory_limit =.*/memory_limit = 2048/g" /usr/local/php/etc/php.ini
-    elif [[ ${MemTotal} -gt 16384 && ${MemTotal} -le 32768 ]]; then
-        sed -i "s/memory_limit =.*/memory_limit = 4096/g" /usr/local/php/etc/php.ini
-    elif [[ ${MemTotal} -ge 32768 ]]; then
-        sed -i "s/memory_limit =.*/memory_limit = 8192/g" /usr/local/php/etc/php.ini
+    if [[ ${MemTotal} -gt 2048 && ${MemTotal} -le 4096 ]]; then
+        sed -i "s/memory_limit =.*/memory_limit = 128M/g" /usr/local/php/etc/php.ini
+    elif [[ ${MemTotal} -ge 4096 ]]; then
+        sed -i "s/memory_limit =.*/memory_limit = 256M/g" /usr/local/php/etc/php.ini
     fi
 
     echo_yellow "是否启用 Opcache? "
@@ -1356,7 +1305,8 @@ EOF
     echo_yellow "是否安装 Composer? "
     read -r -p "是(Y)/否(N): " INSCPR
     if [[ ${INSCPR} = "y" || ${INSCPR} = "Y" ]]; then
-        install_composer
+        curl -sS --connect-timeout 30 -m 60 https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+        echo_blue "composer --version"
     fi
 
     echo_blue "Creating new php-fpm configure file..."
@@ -1375,7 +1325,7 @@ listen.group = nobody
 listen.mode = 0666
 user = nobody
 group = nobody
-pm = dynamic
+pm = static
 pm.max_children = 10
 pm.start_servers = 3
 pm.min_spare_servers = 2
@@ -1386,27 +1336,10 @@ request_slowlog_timeout = 0
 slowlog = ${INSHOME}/wwwlogs/php-fpm-slow.log
 EOF
 
-    if [[ ${MemTotal} -gt 1024 && ${MemTotal} -le 2048 ]]; then
-        sed -i "s#pm.max_children.*#pm.max_children = 20#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.start_servers.*#pm.start_servers = 10#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.min_spare_servers.*#pm.min_spare_servers = 10#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = 20#" /usr/local/php/etc/php-fpm.conf
-    elif [[ ${MemTotal} -gt 2048 && ${MemTotal} -le 4096 ]]; then
-        sed -i "s#pm.max_children.*#pm.max_children = 40#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.start_servers.*#pm.start_servers = 20#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.min_spare_servers.*#pm.min_spare_servers = 20#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = 40#" /usr/local/php/etc/php-fpm.conf
-    elif [[ ${MemTotal} -gt 4096 && ${MemTotal} -le 8192 ]]; then
-        sed -i "s#pm.max_children.*#pm.max_children = 60#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.start_servers.*#pm.start_servers = 30#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.min_spare_servers.*#pm.min_spare_servers = 30#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = 60#" /usr/local/php/etc/php-fpm.conf
-    elif [[ ${MemTotal} -gt 8192 ]]; then
-        sed -i "s#pm.max_children.*#pm.max_children = 80#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.start_servers.*#pm.start_servers = 40#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.min_spare_servers.*#pm.min_spare_servers = 40#" /usr/local/php/etc/php-fpm.conf
-        sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = 80#" /usr/local/php/etc/php-fpm.conf
-    fi
+    sed -i "s#pm.max_children.*#pm.max_children = $(($MemTotal/2/20))#" /usr/local/php/etc/php-fpm.conf
+    sed -i "s#pm.start_servers.*#pm.start_servers = $(($MemTotal/2/30))#" /usr/local/php/etc/php-fpm.conf
+    sed -i "s#pm.min_spare_servers.*#pm.min_spare_servers = $(($MemTotal/2/40))#" /usr/local/php/etc/php-fpm.conf
+    sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = $(($MemTotal/2/20))#" /usr/local/php/etc/php-fpm.conf
 
     echo_blue "Copy php-fpm init.d file..."
     cp sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
@@ -1449,11 +1382,6 @@ EOF
     sed -i "s#;open_basedir =#open_basedir = ${INSHOME}/wwwroot#g" /usr/local/php/etc/php.ini
 
     ins_end "php"
-}
-
-install_composer() {
-    curl -sS --connect-timeout 30 -m 60 https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-    echo_blue "composer --version"
 }
 
 install_redis() {
