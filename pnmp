@@ -291,14 +291,10 @@ server
         server_name                 ${domain}${moredomain_conf};
         server_tokens               off;
 
-        ssl_ct                      on;
-        ssl_ct_static_scts          /home/wwwcert/scts;
-
         # 中间证书 + 站点证书
         ssl_certificate             /home/wwwcert/${domain}/fullchain.pem;
         # 创建 CSR 文件时用的密钥
         ssl_certificate_key         /home/wwwcert/${domain}/${domain}.key;
-
         ssl_dhparam                 /home/wwwcert/${domain}/dhparams.pem;
 
         ssl_protocols              TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
