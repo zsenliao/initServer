@@ -30,6 +30,10 @@ echo_suc() {
     echo "$1: " $(color_text "$2" "32")
 }
 
+echo_wrn() {
+    echo "$1: " $(color_text "$2" "33")
+}
+
 echo_err() {
     echo "$1: " $(color_text "$2" "31")
 }
@@ -515,6 +519,46 @@ vhost_menu() {
     esac
 }
 
+check_cert_date() {
+    NOW=$(date +%s)
+    MNOW=$(date +%s -d "30 day")
+    for certdir in `ls /home/wwwcert`
+    do
+        if [ -f "/home/wwwcert/${certdir}/cert.pem" ]; then
+            CERT_DATE=$(openssl x509 -in /home/wwwcert/${certdir}/cert.pem -noout -enddate)
+            CERT_DATE_STR=${CERT_DATE#*=}
+            SHOW_DATE=$(date "+%Y-%m-%d %H:%M:%S" -d "$CERT_DATE_STR")
+            CERT_DATE_TIME=$(date "+%s" -d "$CERT_DATE_STR")
+            if [ $CERT_DATE_TIME -ge $MNOW ]; then
+                echo_suc "$certdir 到期日期" "$SHOW_DATE"
+            elif [ $CERT_DATE_TIME -gt $NOW ]; then
+                echo_wrn "$certdir 到期日期" "$SHOW_DATE (即将到期，请更新证书)"
+            else
+                echo_err "$certdir 到期日期" "$SHOW_DATE (已过期，网站无法访问)"
+            fi
+        fi
+    done
+}
+
+update_cert() {
+
+}
+# TODO 如果证书过期后，重新安装的方式要调整。使用--standalone安装不成功
+cert_menu() {
+    case "$1" in
+        check)
+            check_cert_date
+            ;;
+        update)
+            update_cert
+            ;;
+        *)
+            echo_yellow "Usage: pnmp cert {check|update|auto}"
+            exit 1
+            ;;
+    esac
+}
+
 case "${arg1}" in
     start)
         server_start
@@ -555,10 +599,14 @@ case "${arg1}" in
     vhost)
         vhost_menu ${arg2}
         ;;
+    cert)
+        cert_menu ${arg2}
+        ;;
     *)
         echo_yellow "Usage: pnmp {start|stop|reload|restart|kill|status|test}"
         echo_yellow "Usage: pnmp {nginx|mysql|php-fpm|redis|uwsgi} {start|stop|reload|restart|kill|status}"
         echo_yellow "Usage: pnmp vhost {add|list|del}"
+        echo_yellow "Usage: pnmp cert {check|update|auto}"
         ;;
 esac
 exit
