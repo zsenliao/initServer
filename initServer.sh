@@ -321,7 +321,7 @@ install_cmake() {
 
 install_acme() {
     if [ -f "/root/.acme.sh/acme.sh.env" ]; then
-        echo_green "acme.sh 已安装，当前版本：$(acme.sh --version)"
+        echo_green "acme.sh 已安装，当前版本：$(/root/.acme.sh/acme.sh --version)"
     else
         ins_begin "acme.sh"
         yum install -y socat
@@ -341,9 +341,9 @@ install_python3() {
     ins_begin "Python3"
     yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
 
-    wget -c --no-check-certificate https://www.python.org/ftp/python/3.7.0/Python-3.7.0.tgz
-    tar xf Python-3.7.0.tgz
-    cd Python-3.7.0
+    wget -c --no-check-certificate https://www.python.org/ftp/python/3.7.2/Python-3.7.2.tgz
+    tar xf Python-3.7.2.tgz
+    cd Python-3.7.2
 
     ./configure --prefix=/usr/local/python3.7 --enable-optimizations
     make && make install
@@ -623,9 +623,9 @@ install_nodejs() {
     tar -xf node-v10.13.0-linux-x64.tar.xz
     mv node-v10.13.0-linux-x64 /usr/local/node
     chown root:root -R /usr/local
-    ln -s /usr/local/node/bin/node /use/local/bin/node
-    ln -s /usr/local/node/bin/npm /usr/local/bin/npm
-    ln -s /usr/local/node/bin/npx /usr/local/bin/npx
+    ln -sf /usr/local/node/bin/node /use/local/bin/node
+    ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
+    ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
     ins_end "node"
     ins_end "npm"
 }
@@ -1555,7 +1555,7 @@ register_management-tool() {
 
 clean_install() {
     echo_yellow "是否清理安装文件?"
-    read -r -p "是(Y)/否(N): " CLRANINS
+    read -r -p "全部(A)是(Y)/否(N): " CLRANINS
     if [[ ${CLRANINS} = "y" || ${CLRANINS} = "Y" ]]; then
         cd ${CUR_DIR}/src
         for deldir in `ls .`
@@ -1566,7 +1566,7 @@ clean_install() {
         done
         cd ${CUR_DIR}
         echo_blue "安装文件清理完成。"
-    elif [[ ${CLRANINS} = "all" ]]; then
+    elif [[ ${CLRANINS} = "a" || ${CLRANINS} = "A" ]]; then
         cd ${CUR_DIR}
         rm -rf src
         echo_blue "安装文件清理完成。"
