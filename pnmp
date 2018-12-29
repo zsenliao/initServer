@@ -210,9 +210,6 @@ EOF
     read -r -p "允许(Y)/禁止(N): " cors
     if [[ "${cors}" == "y" || "${cors}" == "Y" ]]; then
         read -r -p "允许请求的域(直接回车为全部允许): " allow_domain
-        if [[ "${allow_domain}" == "" ]]; then
-            allow_domain = "*"
-        fi
     fi
 
     echo_yellow "是否启用网站日志? (y/n) "
@@ -345,14 +342,37 @@ server
         add_header                 X-XSS-Protection "1; mode=block";
 EOF
     if [[ "${cors}" == "y" || "${cors}" == "Y" ]]; then
+        if [[ "${allow_domain}" == "" ]]; then
+            allow_domain="*"
+        fi
+# todo 多域名的设置
 cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
-        add_header       Access-Control-Allow-Origin '${allow_domain}';
+        # set \$cors_origin "";
+        # if (\$http_origin ~* "^${allow_domain[0]}\$") {
+        #        set \$cors_origin \$http_origin;
+        # }
+        # if (\$http_origin ~* "^${allow_domain[1]}\$") {
+        #        set \$cors_origin \$http_origin;
+        # }
+        set \$cors_origin "${allow_domain}";
+
+        add_header       Access-Control-Allow-Origin \$cors_origin;
         add_header       Access-Control-Allow-Methods 'GET, POST, OPTIONS';
         add_header       Access-Control-Allow-Credentials true;
         add_header       Access-Control-Allow-Headers 'DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,token';
         # add_header       Content-Type 'application/json;charset=utf-8';
         if (\$request_method = 'OPTIONS') {
             return 204;
+        }
+
+        error_page   500 502 503 504  /50x.json;
+        location = /50x.json {
+            add_header       Access-Control-Allow-Origin \$cors_origin always;
+            add_header       Access-Control-Allow-Methods 'GET, POST, OPTIONS' always;
+            add_header       Access-Control-Allow-Credentials true always;
+            add_header       Access-Control-Allow-Headers 'Keep-Alive,User-Agent,X-Requested-With,Cache-Control,Content-Type' always;
+            add_header       Content-Type 'application/json;charset=utf-8' always;
+            root             ${vhostdir};
         }
 EOF
     fi
