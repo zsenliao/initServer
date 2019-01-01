@@ -254,14 +254,6 @@ EOF
     mkdir -p /home/wwwcert/scts
     chown -R nobody:nobody /home/wwwcert/scts
 
-    if [ "${moredomain}" != "" ]; then
-        moredomain_conf=" ${moredomain}"
-        DAMIN="-d ${domain}"$(echo ${moredomain} | sed "s/ / -d&/g" | sed "s/^/ -d &/g")
-    else
-        moredomain_conf=""
-        DAMIN="-d ${domain}"
-    fi
-
     tmpvhost=$(ls /home/wwwconf/nginx/)
     if [ -n "$tmpvhost" ]; then
         LISTEN="listen                      443;"
@@ -284,16 +276,43 @@ server
         }
 
         # 安装证书时的验证目录
-        # location ^~ /.well-known/acme-challenge/ {
-        #     alias         /home/wwwroot/challenges/;
-        #     try_files     \$uri =404;
-        # }
+        location ^~ /.well-known/acme-challenge/ {
+            alias         /home/wwwroot/challenges/;
+            try_files     \$uri =404;
+        }
 
         location / {
             rewrite       ^/(.*)\$ https://${domain}/\$1 permanent;
         }
     }
+EOF
+    echo_blue "测试网站配置文件..."
+    /usr/local/nginx/sbin/nginx -t
+    echo_blue "重启 Nginx 服务..."
+    /usr/local/nginx/sbin/nginx -s reload
 
+    echo_blue "安装证书..."
+    mkdir -p /home/wwwcert/${domain}
+    openssl dhparam -out /home/wwwcert/${domain}/dhparams.pem 2048
+    openssl rand 48 > /home/wwwcert/${domain}/session_ticket.key
+
+    # TODO 选择是否 DNSAPI 方式。如果是，可申请泛域名证书
+    if [ "${moredomain}" != "" ]; then
+        moredomain_conf=" ${moredomain}"
+        DAMIN="-d ${domain}"$(echo ${moredomain} | sed "s/ / -d&/g" | sed "s/^/ -d &/g")
+    else
+        moredomain_conf=""
+        DAMIN="-d ${domain}"
+    fi
+
+    /root/.acme.sh/acme.sh --issue ${DAMIN} --nginx
+    /root/.acme.sh/acme.sh --installcert ${DAMIN} \
+        --cert-file /home/wwwcert/${domain}/cert.pem \
+        --key-file /home/wwwcert/${domain}/${domain}.key \
+        --fullchain-file /home/wwwcert/${domain}/fullchain.pem \
+        --reloadcmd  "service nginx force-reload"
+
+    cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
 server
     {
         ${LISTEN}
@@ -306,6 +325,11 @@ server
         # 创建 CSR 文件时用的密钥
         ssl_certificate_key         /home/wwwcert/${domain}/${domain}.key;
         ssl_dhparam                 /home/wwwcert/${domain}/dhparams.pem;
+        # 根证书 + 中间证书
+        # https://imququ.com/post/why-can-not-turn-on-ocsp-stapling.html
+        ssl_trusted_certificate    /home/wwwcert/${domain}/cert.pem;
+        # 单机部署可以不指定 ssl_session_ticket_key
+        #ssl_session_ticket_key     /home/wwwcert/${domain}/session_ticket.key;
 
         ssl_protocols              TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
         ssl_ciphers                TLS13-AES-256-GCM-SHA384:TLS13-CHACHA20-POLY1305-SHA256:TLS13-AES-128-GCM-SHA256:TLS13-AES-128-CCM-8-SHA256:TLS13-AES-128-CCM-SHA256:EECDH+CHACHA20:EECDH+CHACHA20-draft:EECDH+ECDSA+AES128:EECDH+aRSA+AES128:RSA+AES128:EECDH+ECDSA+AES256:EECDH+aRSA+AES256:RSA+AES256:EECDH+ECDSA+3DES:EECDH+aRSA+3DES:RSA+3DES:!MD5;
@@ -317,15 +341,8 @@ server
 
         ssl_session_tickets        on;
 
-        # 单机部署可以不指定 ssl_session_ticket_key
-        #ssl_session_ticket_key     /home/wwwcert/${domain}/session_ticket.key;
-
         ssl_stapling               on;
         ssl_stapling_verify        on;
-
-        # 根证书 + 中间证书
-        # https://imququ.com/post/why-can-not-turn-on-ocsp-stapling.html
-        ssl_trusted_certificate    /home/wwwcert/${domain}/cert.pem;
 
         #resolver                   114.114.114.114 valid=300s;
         #resolver_timeout           10s;
@@ -334,6 +351,12 @@ server
 
         if ( \$request_method !~ ^(GET|HEAD|POST|OPTIONS)\$ ) {
             return                 444;
+        }
+
+        # 安装证书时的验证目录
+        location ^~ /.well-known/acme-challenge/ {
+            alias         /home/wwwroot/challenges/;
+            try_files     \$uri =404;
         }
 
         if ( \$host != '${domain}' ) {
@@ -434,25 +457,12 @@ cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
     }
 EOF
 
-    /etc/init.d/nginx stop
-
-    mkdir -p /home/wwwcert/${domain}
-    openssl dhparam -out /home/wwwcert/${domain}/dhparams.pem 2048
-    openssl rand 48 > /home/wwwcert/${domain}/session_ticket.key
-    # 添加防火墙端口
-    firewall-cmd --zone=public --add-port=88/tcp --permanent
-
-    /root/.acme.sh/acme.sh --issue ${DAMIN} --standalone --httpport 88
-    /root/.acme.sh/acme.sh --installcert ${DAMIN} \
-        --cert-file /home/wwwcert/${domain}/cert.pem \
-        --key-file /home/wwwcert/${domain}/${domain}.key \
-        --fullchain-file /home/wwwcert/${domain}/fullchain.pem \
-        --reloadcmd  "service nginx force-reload"
-
     echo_blue "测试网站配置文件..."
     /usr/local/nginx/sbin/nginx -t
-    echo_blue "重启 Nginx 服务..."
-    /usr/local/nginx/sbin/nginx -s reload
+    if [ $? -eq 0 ]; then
+        echo_green "证书安装成功，重启 Nginx 服务..."
+        /usr/local/nginx/sbin/nginx -s reload
+    fi
 
     echo "================================================"
     echo_yellow "网站信息:"
@@ -520,6 +530,7 @@ vhost_menu() {
 }
 
 check_cert_date() {
+    acme.sh --list
     NOW=$(date +%s)
     MNOW=$(date +%s -d "30 day")
     for certdir in `ls /home/wwwcert`
@@ -534,23 +545,22 @@ check_cert_date() {
             elif [ $CERT_DATE_TIME -gt $NOW ]; then
                 echo_wrn "$certdir 到期日期" "$SHOW_DATE (即将到期，请更新证书)"
             else
-                echo_err "$certdir 到期日期" "$SHOW_DATE (已过期，网站无法访问)"
+                echo_err "$certdir 到期日期" "$SHOW_DATE (已过期，需通过 DNS 方式更新证书)"
             fi
         fi
     done
 }
 
-update_cert() {
-
-}
-# TODO 如果证书过期后，重新安装的方式要调整。使用--standalone安装不成功
 cert_menu() {
     case "$1" in
         check)
             check_cert_date
             ;;
         update)
-            update_cert
+            acme.sh --cron  # acme.sh --cron -f  强制
+            ;;
+        auto)
+            acme.sh --install-cronjob
             ;;
         *)
             echo_yellow "Usage: pnmp cert {check|update|auto}"
@@ -602,11 +612,21 @@ case "${arg1}" in
     cert)
         cert_menu ${arg2}
         ;;
+    upadte)
+        MYNAME=$0
+        echo_blue "当前工具名称: ${MYNAME}"
+        wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
+        sed -i "s|/pnmp/|${MYNAME}/|g" /usr/local/bin/${MYNAME}
+        # sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/${MYNAME}  # TODO 替换默认安装目录
+        chmod +x /usr/local/bin/${MYNAME}
+        ${MYNAME} status
+        ;;
     *)
         echo_yellow "Usage: pnmp {start|stop|reload|restart|kill|status|test}"
         echo_yellow "Usage: pnmp {nginx|mysql|php-fpm|redis|uwsgi} {start|stop|reload|restart|kill|status}"
         echo_yellow "Usage: pnmp vhost {add|list|del}"
         echo_yellow "Usage: pnmp cert {check|update|auto}"
+        echo_yellow "Usage: pnmp upadte"
         ;;
 esac
 exit

@@ -322,6 +322,8 @@ install_cmake() {
 install_acme() {
     if [ -f "/root/.acme.sh/acme.sh.env" ]; then
         echo_green "acme.sh 已安装，当前版本：$(/root/.acme.sh/acme.sh --version)"
+        echo_blue "更新版本..."
+        acme.sh --upgrade
     else
         ins_begin "acme.sh"
         yum install -y socat
@@ -1534,11 +1536,21 @@ EOF
 }
 
 register_management-tool() {
-    echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
-    read -r -p "请输入管理工具名称: " MYNAME
-    if [ -z "${MYNAME}" ]; then
-        MYNAME="pnmp"
-    fi
+    while :;do
+        echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
+        read -r -p "请输入管理工具名称: " MYNAME
+        if [ -z "${MYNAME}" ]; then
+            break
+            MYNAME="pnmp"
+        else
+            command -v ${MYNAME} >/dev/null 2>&1
+            if [ $? -eq 0 ]; then
+                echo_red "存在相同的命令，请重新输入!"
+            else
+                break
+            fi
+        fi
+    done
     wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
     sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/${MYNAME}
     sed -i "s|/pnmp/|${MYNAME}/|g" /usr/local/bin/${MYNAME}

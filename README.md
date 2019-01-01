@@ -36,11 +36,12 @@
 > * Usage: pnmp {start|stop|reload|restart|kill|status|test}
 > * Usage: pnmp {nginx|mysql|php-fpm|redis|uwsgi} {start|stop|reload|restart|kill|status}
 > * Usage: pnmp vhost {add|list|del}
+> * Usage: pnmp cert {check|update|auto}
 
 ### 通过管理工具添加站点说明
 
 > * 新增站点时，会通过 acme.sh 申请并安装域名证书；
-> * 证书有效期 `3个月`，请记得通过 acme.sh 及时续期（看一些文档是说有自动续期功能，但我的没实现😂）；
+> * _~~证书有效期 `3个月`，请记得通过 acme.sh 及时续期（看一些文档是说有自动续期功能，但我的没实现😂）；~~_ 安装脚本的 BUG，已修复
 > * 泛域名证书的申请，只能通过 `DNS` 的方式，请自行通过 acme.sh 申请；
 > * 站点强制使用 `HTTPS`
 
@@ -48,5 +49,9 @@
 * [x] 站点目录自定义更改
 * [x] 管理工具自定义命名
 * [ ] 选择安装是否 [shellMonitor](https://github.com/zsenliao/shellMonitor)
-* [ ] 域名证书续期
-* [ ] 增加自定义命名管理工具时的名称检测
+* [x] 增加域名证书到期时间检测
+* [x] 域名证书续期
+* [x] 增加自定义命名管理工具时的名称检测
+* [x] 增加管理工具的升级功能
+* [x] 修复新增域名时申请正式后自动更新失败的 BUG
+* [ ] 跨域设置中，增加多域名的处理
