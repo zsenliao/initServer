@@ -5,6 +5,7 @@ export LE_WORKING_DIR="/root/.acme.sh"
 
 arg1=$1
 arg2=$2
+DATAHOME=/home
 
 color_text() {
     echo -e " \e[0;$2m$1\e[0m"
@@ -95,6 +96,18 @@ server_kill() {
 }
 
 server_status() {
+    echo_blue "内存使用:"
+    free -m
+    echo "=================="
+    echo_blue "防火墙状态:"
+    firewall-cmd --list-all
+    echo "=================="
+    echo_blue "存储容量:"
+    df -h /
+    echo ""
+    du -h ${DTATHOME} -d 1
+    echo "=================="
+    echo_blue "服务状态:"
     [ -x /etc/init.d/nginx ] && /etc/init.d/nginx status || echo_red "Nginx 未安装"
     if [ -x /etc/init.d/mysqld ]; then
         /etc/init.d/mysqld status
@@ -308,7 +321,7 @@ EOF
     /root/.acme.sh/acme.sh --issue ${DAMIN} --nginx
     /root/.acme.sh/acme.sh --installcert ${DAMIN} \
         --cert-file /home/wwwcert/${domain}/cert.pem \
-        --key-file /home/wwwcert/${domain}/${domain}.key \
+        --key-file /home/wwwcert/${domain}/cert.key \
         --fullchain-file /home/wwwcert/${domain}/fullchain.pem \
         --reloadcmd  "service nginx force-reload"
 
@@ -323,7 +336,7 @@ server
         # 中间证书 + 站点证书
         ssl_certificate             /home/wwwcert/${domain}/fullchain.pem;
         # 创建 CSR 文件时用的密钥
-        ssl_certificate_key         /home/wwwcert/${domain}/${domain}.key;
+        ssl_certificate_key         /home/wwwcert/${domain}/cert.key;
         ssl_dhparam                 /home/wwwcert/${domain}/dhparams.pem;
         # 根证书 + 中间证书
         # https://imququ.com/post/why-can-not-turn-on-ocsp-stapling.html
@@ -615,9 +628,12 @@ case "${arg1}" in
     upadte)
         MYNAME=$0
         echo_blue "当前工具名称: ${MYNAME}"
+        HOMESTR=$(head -n 8 /usr/local/bin/${MYNAME} | grep DATAHOME)
+        INSHOME=${HOMESTR:9}
+        echo_blue "系统安装目录：${INSHOME}"
         wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
         sed -i "s|/pnmp/|${MYNAME}/|g" /usr/local/bin/${MYNAME}
-        # sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/${MYNAME}  # TODO 替换默认安装目录
+        sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/${MYNAME}
         chmod +x /usr/local/bin/${MYNAME}
         ${MYNAME} status
         ;;

@@ -8,6 +8,15 @@ MODE=''
 HOSTIP=$(curl ip.cip.cc 2>/dev/null)
 start_time=$(date +%s)
 
+CMAKEVER=3.13.2
+PYTHONVER=3.7.2
+NODEJSVER=10.15.0
+DAEMONVER=1.19.2
+NGINXVER=1.15.6
+PHPVER=7.2.13
+REDISVER=5.0.3
+MYSQLVER=5.7.21
+
 set_time_zone() {
     echo_blue "设置时区..."
     rm -rf /etc/localtime
@@ -308,9 +317,9 @@ install_cmake() {
     yum remove -y cmake
     yum install -y gcc gcc-c++
 
-    wget -c https://cmake.org/files/v3.11/cmake-3.11.1.tar.gz
-    tar zxf cmake-3.11.1.tar.gz
-    cd cmake-3.11.1
+    wget -c https://github.com/Kitware/CMake/releases/download/v${CMAKEVER}/cmake-${CMAKEVER}.tar.gz
+    tar zxf cmake-${CMAKEVER}.tar.gz
+    cd cmake-${CMAKEVER}
 
     ./bootstrap
     make && make install
@@ -343,9 +352,9 @@ install_python3() {
     ins_begin "Python3"
     yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
 
-    wget -c --no-check-certificate https://www.python.org/ftp/python/3.7.2/Python-3.7.2.tgz
-    tar xf Python-3.7.2.tgz
-    cd Python-3.7.2
+    wget -c --no-check-certificate https://www.python.org/ftp/python/${PYTHONVER}/Python-${PYTHONVER}.tgz
+    tar xf Python-${PYTHONVER}.tgz
+    cd Python-${PYTHONVER}
 
     ./configure --prefix=/usr/local/python3.7 --enable-optimizations
     make && make install
@@ -621,11 +630,11 @@ install_ikev2() {
 
 install_nodejs() {
     ins_begin "Nodejs"
-    wget -c https://nodejs.org/dist/v10.13.0/node-v10.13.0-linux-x64.tar.xz
-    tar -xf node-v10.13.0-linux-x64.tar.xz
-    mv node-v10.13.0-linux-x64 /usr/local/node
+    wget -c https://nodejs.org/dist/v${NODEJSVER}/node-v${NODEJSVER}-linux-x64.tar.xz
+    tar -xf node-v${NODEJSVER}-linux-x64.tar.xz
+    mv node-v${NODEJSVER}-linux-x64 /usr/local/node
     chown root:root -R /usr/local
-    ln -sf /usr/local/node/bin/node /use/local/bin/node
+    ln -sf /usr/local/node/bin/node /usr/local/bin/node
     ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
     ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
     ins_end "node"
@@ -660,13 +669,14 @@ install_mysql() {
     rm -rf ${INSHOME}/database/mysql
     rm -rf /usr/local/mysql
 
-    wget -c https://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz/download -O boost_1_59_0.tar.gz
+    wget -c http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz
     tar zxf boost_1_59_0.tar.gz
     mv boost_1_59_0 /usr/local/boost
+    chown root:root -R /usr/local/boost
 
-    wget -c https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-5.7.21.tar.gz
-    tar zxf mysql-5.7.21.tar.gz
-    cd mysql-5.7.21
+    wget -c https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQLVER}.tar.gz
+    tar zxf mysql-${MYSQLVER}.tar.gz
+    cd mysql-${MYSQLVER}
 
     rm -f /etc/my.cnf
     groupadd mysql
@@ -683,7 +693,7 @@ install_mysql() {
         # echo "/var/swapfile swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
     fi
 
-    cmake . -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/usr/local/boost -DMYSQL_DATADIR=${INSHOME}/database/mysql -DDEFAULT_CHARSET=utf8mb4 -DDEFAULT_COLLATION=utf8mb4_general_ci
+    cmake . -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/usr/local/boost -DMYSQL_DATADIR=${INSHOME}/database/mysql -DDEFAULT_CHARSET=utf8 -DDEFAULT_COLLATION=utf8_general_ci
     make && make install
 
     if [[ ${MemTotal} -lt 1024 ]]; then
@@ -931,10 +941,10 @@ EOF
 install_start-stop-daemon() {
     ins_begin "start-stop-daemon"
     yum install -y ncurses-devel
-    wget -c http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_1.16.18.tar.xz -O start-stop-daemon_1.16.18.tar.xz
-    mkdir start-stop-daemon_1.16.18
-    tar -xf start-stop-daemon_1.16.18.tar.xz -C ./start-stop-daemon_1.16.18 --strip-components 1
-    cd start-stop-daemon_1.16.18
+    wget -c http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${DAEMONVER}.tar.xz -O start-stop-daemon_${DAEMONVER}.tar.xz
+    mkdir start-stop-daemon_${DAEMONVER}
+    tar -xf start-stop-daemon_${DAEMONVER}.tar.xz -C ./start-stop-daemon_${DAEMONVER} --strip-components 1
+    cd start-stop-daemon_${DAEMONVER}
 
     ./configure
     make
@@ -963,10 +973,10 @@ install_nginx() {
     tar xzf OpenSSL_1_1_1.tar.gz
     mv openssl-OpenSSL_1_1_1 openssl
 
-    wget -c https://nginx.org/download/nginx-1.15.6.tar.gz
-    tar zxf nginx-1.15.6.tar.gz
-    cd nginx-1.15.6
-    sed -i "s/1.15.6/8.8.8.8/g" src/core/nginx.h
+    wget -c https://nginx.org/download/nginx-${NGINXVER}.tar.gz
+    tar zxf nginx-${NGINXVER}.tar.gz
+    cd nginx-${NGINXVER}
+    sed -i "s/${NGINXVER}/8.8.8.8/g" src/core/nginx.h
 
     ./configure \
         --add-module=../ngx_brotli \
@@ -1204,9 +1214,9 @@ install_php() {
 EOF
     ldconfig
 
-    wget -c http://cn2.php.net/get/php-7.2.9.tar.gz/from/this/mirror -O php-7.2.9.tar.gz
-    tar zxf php-7.2.9.tar.gz
-    cd php-7.2.9
+    wget -c http://cn2.php.net/get/php-${PHPVER}.tar.gz/from/this/mirror -O php-${PHPVER}.tar.gz
+    tar zxf php-${PHPVER}.tar.gz
+    cd php-${PHPVER}
     ./configure --prefix=/usr/local/php \
                 --with-config-file-path=/usr/local/php/etc \
                 --with-config-file-scan-dir=/usr/local/php/conf.d \
@@ -1403,9 +1413,9 @@ install_redis() {
     mkdir -p ${INSHOME}/database/redis
     chown -R redis:redis ${INSHOME}/database/redis
 
-    wget -c http://download.redis.io/releases/redis-4.0.9.tar.gz
-    tar zxf redis-4.0.9.tar.gz
-    cd redis-4.0.9
+    wget -c http://download.redis.io/releases/redis-${REDISVER}.tar.gz
+    tar zxf redis-${REDISVER}.tar.gz
+    cd redis-${REDISVER}
     make && make PREFIX=/usr/local/redis install
 
     cp redis.conf  /usr/local/redis/etc/
@@ -1540,8 +1550,8 @@ register_management-tool() {
         echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
         read -r -p "请输入管理工具名称: " MYNAME
         if [ -z "${MYNAME}" ]; then
-            break
             MYNAME="pnmp"
+            break
         else
             command -v ${MYNAME} >/dev/null 2>&1
             if [ $? -eq 0 ]; then
