@@ -5,38 +5,38 @@ export LE_WORKING_DIR="/root/.acme.sh"
 
 arg1=$1
 arg2=$2
-DATAHOME=/home
+DATAHOME="/home"
 
 color_text() {
     echo -e " \e[0;$2m$1\e[0m"
 }
 
 echo_red() {
-    echo $(color_text "$1" "31")
+    color_text "$1" "31"
 }
 
 echo_green() {
-    echo $(color_text "$1" "32")
+    color_text "$1" "32"
 }
 
 echo_yellow() {
-    echo $(color_text "$1" "33")
+    color_text "$1" "33"
 }
 
 echo_blue() {
-    echo $(color_text "$1" "34")
+    color_text "$1" "34"
 }
 
 echo_suc() {
-    echo "$1: " $(color_text "$2" "32")
+    echo "$1: " "$(color_text \""$2"\" \"32\")"
 }
 
 echo_wrn() {
-    echo "$1: " $(color_text "$2" "33")
+    echo "$1: " "$(color_text \""$2"\" \"33\")"
 }
 
 echo_err() {
-    echo "$1: " $(color_text "$2" "31")
+    echo "$1: " "$(color_text \""$2"\" \"31\")"
 }
 
 # Check if user is root
@@ -105,7 +105,7 @@ server_status() {
     echo_blue "存储容量:"
     df -h /
     echo ""
-    du -h ${DTATHOME} -d 1
+    du -h "${DATAHOME}" -d 1
     echo "=================="
     echo_blue "服务状态:"
     [ -x /etc/init.d/nginx ] && /etc/init.d/nginx status || echo_red "Nginx 未安装"
@@ -246,23 +246,23 @@ EOF
 
     echo ""
     echo_blue "请按任意键开始新建网站..."
-    OLDCONFIG=`stty -g`
+    OLDCONFIG=$(stty -g)
     stty -icanon -echo min 1 time 0
     dd count=1 2>/dev/null
-    stty ${OLDCONFIG}
+    stty "${OLDCONFIG}"
 
     echo_blue "创建网站目录..."
-    mkdir -p ${vhostdir}
+    mkdir -p "${vhostdir}"
     if [ "${access_log}" == "y" ]; then
-        touch /home/wwwlogs/${al_name}.log
+        touch "/home/wwwlogs/${al_name}.log"
     fi
     mkdir -p /home/wwwroot/challenges
     chown -R nobody:nobody /home/wwwroot/challenges
     chmod -R 777 /home/wwwroot/challenges
 
     echo_blue "设置网站目录权限..."
-    chmod -R 755 ${vhostdir}
-    chown -R nobody:nobody ${vhostdir}
+    chmod -R 755 "${vhostdir}"
+    chown -R nobody:nobody "${vhostdir}"
 
     mkdir -p /home/wwwcert/scts
     chown -R nobody:nobody /home/wwwcert/scts
@@ -305,24 +305,24 @@ EOF
     /usr/local/nginx/sbin/nginx -s reload
 
     echo_blue "安装证书..."
-    mkdir -p /home/wwwcert/${domain}
-    openssl dhparam -out /home/wwwcert/${domain}/dhparams.pem 2048
-    openssl rand 48 > /home/wwwcert/${domain}/session_ticket.key
+    mkdir -p "/home/wwwcert/${domain}"
+    openssl dhparam -out "/home/wwwcert/${domain}/dhparams.pem" 2048
+    openssl rand 48 > "/home/wwwcert/${domain}/session_ticket.key"
 
     # TODO 选择是否 DNSAPI 方式。如果是，可申请泛域名证书
     if [ "${moredomain}" != "" ]; then
         moredomain_conf=" ${moredomain}"
-        DAMIN="-d ${domain}"$(echo ${moredomain} | sed "s/ / -d&/g" | sed "s/^/ -d &/g")
+        DAMIN="-d ${domain}"$(echo "${moredomain}" | sed "s/ / -d&/g" | sed "s/^/ -d &/g")
     else
         moredomain_conf=""
         DAMIN="-d ${domain}"
     fi
 
-    /root/.acme.sh/acme.sh --issue ${DAMIN} --nginx
-    /root/.acme.sh/acme.sh --installcert ${DAMIN} \
-        --cert-file /home/wwwcert/${domain}/cert.pem \
-        --key-file /home/wwwcert/${domain}/cert.key \
-        --fullchain-file /home/wwwcert/${domain}/fullchain.pem \
+    /root/.acme.sh/acme.sh --issue "${DAMIN}" --nginx
+    /root/.acme.sh/acme.sh --installcert "${DAMIN}" \
+        --cert-file /home/wwwcert/"${domain}"/cert.pem \
+        --key-file /home/wwwcert/"${domain}"/cert.key \
+        --fullchain-file /home/wwwcert/"${domain}"/fullchain.pem \
         --reloadcmd  "service nginx force-reload"
 
     cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
@@ -479,18 +479,18 @@ EOF
 
     echo "================================================"
     echo_yellow "网站信息:"
-    echo_suc "域名" ${domain}
-    echo_suc "目录" ${vhostdir}
+    echo_suc "域名" "${domain}"
+    echo_suc "目录" "${vhostdir}"
     if [[ "${cors}" == "y" || "${cors}" == "Y" ]]; then
         echo_suc "跨域请求" "允许"
-        echo_suc "允许请求域" ${allow_domain}
+        echo_suc "允许请求域" "${allow_domain}"
     else
         echo_err "跨域请求" "禁止"
     fi
     if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
         echo_suc "Python" "启用"
         echo_suc "Python 入口文件" ${appname}
-        echo_suc "Python 系统目录" ${appdir}
+        echo_suc "Python 系统目录" "${appdir}"
     else
         echo_err "Python" "禁用"
     fi
@@ -514,7 +514,7 @@ EOF
 
 list_vhost() {
     echo_blue "Nginx VirtualHost list:"
-    ls /home/wwwconf/nginx/ | grep ".conf$" | sed 's/.conf//g'
+    echo /home/wwwconf/nginx/*.conf | sed 's/.conf//g'
 }
 
 del_vhost() {
@@ -546,16 +546,16 @@ check_cert_date() {
     acme.sh --list
     NOW=$(date +%s)
     MNOW=$(date +%s -d "30 day")
-    for certdir in `ls /home/wwwcert`
+    for certdir in $(ls /home/wwwcert)
     do
         if [ -f "/home/wwwcert/${certdir}/cert.pem" ]; then
-            CERT_DATE=$(openssl x509 -in /home/wwwcert/${certdir}/cert.pem -noout -enddate)
+            CERT_DATE=$(openssl x509 -in /home/wwwcert/"${certdir}"/cert.pem -noout -enddate)
             CERT_DATE_STR=${CERT_DATE#*=}
             SHOW_DATE=$(date "+%Y-%m-%d %H:%M:%S" -d "$CERT_DATE_STR")
             CERT_DATE_TIME=$(date "+%s" -d "$CERT_DATE_STR")
-            if [ $CERT_DATE_TIME -ge $MNOW ]; then
+            if [ "$CERT_DATE_TIME" -ge "$MNOW" ]; then
                 echo_suc "$certdir 到期日期" "$SHOW_DATE"
-            elif [ $CERT_DATE_TIME -gt $NOW ]; then
+            elif [ "$CERT_DATE_TIME" -gt "$NOW" ]; then
                 echo_wrn "$certdir 到期日期" "$SHOW_DATE (即将到期，请更新证书)"
             else
                 echo_err "$certdir 到期日期" "$SHOW_DATE (已过期，需通过 DNS 方式更新证书)"
@@ -628,13 +628,13 @@ case "${arg1}" in
     upadte)
         MYNAME=$0
         echo_blue "当前工具名称: ${MYNAME}"
-        HOMESTR=$(head -n 8 /usr/local/bin/${MYNAME} | grep DATAHOME)
+        HOMESTR=$(head -n 8 /usr/local/bin/"${MYNAME}" | grep DATAHOME)
         INSHOME=${HOMESTR:9}
         echo_blue "系统安装目录：${INSHOME}"
-        wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
-        sed -i "s|/pnmp/|${MYNAME}/|g" /usr/local/bin/${MYNAME}
-        sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/${MYNAME}
-        chmod +x /usr/local/bin/${MYNAME}
+        wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/"${MYNAME}"
+        sed -i "s|/pnmp/|${MYNAME}/|g" /usr/local/bin/"${MYNAME}"
+        sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/"${MYNAME}"
+        chmod +x /usr/local/bin/"${MYNAME}"
         ${MYNAME} status
         ;;
     *)

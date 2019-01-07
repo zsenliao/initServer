@@ -3,7 +3,7 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
 CUR_DIR=$(cd $(dirname $BASH_SOURCE); pwd)
-MemTotal=`free -m | grep Mem | awk '{print  $2}'`
+MemTotal=$(free -m | grep Mem | awk '{print  $2}')
 MODE=''
 HOSTIP=$(curl ip.cip.cc 2>/dev/null)
 start_time=$(date +%s)
@@ -33,7 +33,7 @@ check_hosts() {
     else
         echo "127.0.0.1 localhost.localdomain localhost" >> /etc/hosts
     fi
-    pingresult=`ping -c1 baidu.com 2>&1`
+    pingresult=$(ping -c1 baidu.com 2>&1)
     echo_blue "${pingresult}"
     if echo "${pingresult}" | grep -q "unknown host"; then
         echo_red "DNS...fail!"
@@ -55,29 +55,29 @@ color_text() {
 }
 
 echo_red() {
-    echo $(color_text "$1" "31")
+    color_text "$1" "31"
 }
 
 echo_green() {
-    echo $(color_text "$1" "32")
+    color_text "$1" "32"
 }
 
 echo_yellow() {
-    echo $(color_text "$1" "33")
+    color_text "$1" "33"
 }
 
 echo_blue() {
-    echo $(color_text "$1" "34")
+    color_text "$1" "34"
 }
 
 ins_begin() {
     MODE=$1
-    echo $(color_text "[+] 安装 $1..." "34")
+    color_text "[+] 安装 $1..." "34"
 }
 
 ins_end() {
-    local version=$($1 --version)
-    [ $? -eq 0 ] && echo $(color_text "[√] $MODE 安装成功! 当前版本：$version" "32") || echo $(color_text "[x] $MODE 安装失败! " "31")
+    readonly version=$($1 --version)
+    [ $? -eq 0 ] && echo_green "[√] $MODE 安装成功! 当前版本：$version" || echo_red "[x] $MODE 安装失败! "
 }
 
 show_ver() {
@@ -97,8 +97,8 @@ set_host_name() {
     sed -i "s/^127.0.0.1 .*/127.0.0.1 ${HOST_NAME}/g" /etc/hosts
     echo "${HOSTIP} ${HOST_NAME}" >> /etc/hosts
     echo "hostname=\"${HOST_NAME}\"" >> /etc/sysconfig/network
-    echo '' > /etc/hostname
-    echo ${HOST_NAME} > /etc/hostname
+    echo "" > /etc/hostname
+    echo "${HOST_NAME}" > /etc/hostname
     /etc/init.d/network restart
     echo_blue "[!] 请检测修改是否生效:"
     cat /etc/hosts
@@ -106,98 +106,138 @@ set_host_name() {
 
 add_user() {
     echo_yellow "[+] 添加用户..."
-    read -r -p "请输入用户名: " USERNAME
-    read -r -p "请输入用户密码: " PASSWORD
-    read -r -p "请输入 ssh 证书名: " FILENAME
-
-    if [[ -n "${USERNAME}" && -n "${PASSWORD}" ]]; then
-        useradd ${USERNAME}
-        echo ${PASSWORD} | passwd ${USERNAME} --stdin  &>/dev/null
-
-        mkdir -p /home/${USERNAME}/.ssh
-        chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}
-        chmod -R 755 /home/${USERNAME}
-        cd /home/${USERNAME}/.ssh
-        if [ -z "${FILENAME}" ]; then
-            FILENAME=${USERNAME}
+    while :;do
+        read -r -p "请输入用户名: " USERNAME
+        if [ "${USERNAME}" != "" ]; then
+            break
+        else
+            echo_red "用户名不能为空！"
         fi
-
-        echo_yellow "请输入证书密码(如不要密码请直接回车)"
-        su ${USERNAME} -c "ssh-keygen -t rsa -f ${FILENAME}"
-
-        cd ${CUR_DIR}/src
-
-        chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}
-        chmod -R 755 /home/${USERNAME}
-        echo_green "[√] 添加用户成功!"
-
-        echo_yellow "是否修改 SSH 配置?"
-        read -r -p "是(Y)/否(N): " SETSSH
-        if [[ ${SETSSH} = "y" || ${SETSSH} = "Y" ]]; then
-            ssh_setting
+    done
+    while :;do
+        read -r -p "请输入用户密码: " PASSWORD
+        if [ "${PASSWORD}" != "" ]; then
+            break
+        else
+            echo_red "密码不能为空！"
         fi
+    done
+    read -r -p "请输入 ssh 证书名(留空则与用户名相同): " FILENAME
+
+    # if [[ -n "${USERNAME}" && -n "${PASSWORD}" ]]; then
+    useradd "${USERNAME}"
+    echo "${PASSWORD}" | passwd "${USERNAME}" --stdin  &>/dev/null
+
+    mkdir -p "/home/${USERNAME}/.ssh"
+    chown -R "${USERNAME}":"${USERNAME}" "/home/${USERNAME}"
+    chmod -R 755 "/home/${USERNAME}"
+    cd "/home/${USERNAME}/.ssh" || exit
+    if [ -z "${FILENAME}" ]; then
+        FILENAME=${USERNAME}
     fi
+
+    echo_yellow "请输入证书密码(如不要密码请直接回车)"
+    su "${USERNAME}" -c "ssh-keygen -t rsa -f ${FILENAME}"
+
+    cd "${CUR_DIR}/src" || exit
+
+    chown -R "${USERNAME}":"${USERNAME}" "/home/${USERNAME}"
+    chmod -R 755 "/home/${USERNAME}"
+    chmod 700 "/home/${USERNAME}/.ssh"
+    chmod 600 "/home/${USERNAME}/.ssh/${FILENAME}"
+    echo_green "[√] 添加用户成功!"
+    # fi
 }
 
 ssh_setting() {
     echo_yellow "[+] 修改 SSH 配置..."
     cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 
-    echo_blue "请打开一个新的命令窗口后，通过以下指令下载证书文件："
-    echo "scp ${USERNAME}@${HOSTIP}:/home/${USERNAME}/.ssh/${FILENAME} ./"
-    echo_yellow "是否下载成功?"
-    read -r -p "是(Y)/否(N): " DOWNFILE
-    if [[ "${DOWNFILE}" = "y" || "${DOWNFILE}" = "Y" ]]; then
-        sed -i "s/^PasswordAuthentication [a-z]*/#&/g; 1,/^#PasswordAuthentication [a-z]*/{s/^#PasswordAuthentication [a-z]*/PasswordAuthentication no/g}" /etc/ssh/sshd_config
+    if [ -n "${USERNAME}" ]; then
+        echo_blue "请打开一个新的命令窗口后，通过以下指令下载证书文件："
+        echo "scp ${USERNAME}@${HOSTIP}:/home/${USERNAME}/.ssh/${FILENAME} ./"
+        echo_yellow "是否下载成功?"
+        read -r -p "是(Y)/否(N): " DOWNFILE
+        if [[ "${DOWNFILE}" = "y" || "${DOWNFILE}" = "Y" ]]; then
+            # 是否允许使用基于密码的认证
+            sed -i "s/^PasswordAuthentication [a-z]*/#&/g; 1,/^#PasswordAuthentication [a-z]*/{s/^#PasswordAuthentication [a-z]*/PasswordAuthentication no/g}" /etc/ssh/sshd_config
+        fi
+        sed -i "s|AuthorizedKeysFile.*|AuthorizedKeysFile .ssh/${FILENAME}.pub|g" /etc/ssh/sshd_config
+        #echo "" >> /etc/ssh/sshd_config
+        #echo "AllowUsers ${USERNAME}" >> /etc/ssh/sshd_config
     fi
 
     echo_yellow "是否修改 SSH 默认端口(强烈建议修改，如不修改请直接回车)?"
     read -r -p "请输入 ssh 端口: " SSHPORT
-    if [ -z "${SSHPORT}" ]; then
-        SSHPORT="22"
+    if [[ -n "${SSHPORT}" && "${SSHPORT}" != "22" ]]; then
+        sed -i "s/^Port [0-9]*/#&/g; 1,/^#Port [0-9]*/{s/^#Port [0-9]*/Port ${SSHPORT}/g}" /etc/ssh/sshd_config
     fi
 
-    sed -i "s/^Port [0-9]*/#&/g; 1,/^#Port [0-9]*/{s/^#Port [0-9]*/Port ${SSHPORT}/g}" /etc/ssh/sshd_config
-    sed -i "s/^RSAAuthentication [a-z]*/#&/g; 1,/^#RSAAuthentication [a-z]*/{s/^#RSAAuthentication [a-z]*/RSAAuthentication yes/g}" /etc/ssh/sshd_config
+    echo_yellow "是否限制指定 IP 连接?"
+    echo_red "注意：如限定，除该IP外的其他连接请求都将被拒绝!"
+    read -r -p "请输入 IP 地址: " LOGINIP
+    if [ -n "${LOGINIP}" ]; then
+        sed -i "s/^ListenAddress [0-9.]*/#&/g; 1,/^#ListenAddress [0-9.]*/{s/^#ListenAddress [0-9.]*/ListenAddress ${LOGINIP}/g}" /etc/ssh/sshd_config
+    fi
+
+    sed -i "s/^Protocol [0-9]*/#&/g; 1,/^#Protocol [0-9]*/{s/^#Protocol [0-9]*/Protocol 2/g}" /etc/ssh/sshd_config
+    # 是否允许公钥认证
+    sed -i "s/^PubkeyAuthentication [a-z]*/#&/g; 1,/^#PubkeyAuthentication [a-z]*/{s/^#PubkeyAuthentication [a-z]*/PubkeyAuthentication yes/g}" /etc/ssh/sshd_config
+    # 禁止 ROOT 用户登录
     sed -i "s/^PermitRootLogin [a-z]*/#&/g; 1,/^#PermitRootLogin [a-z]*/{s/^#PermitRootLogin [a-z]*/PermitRootLogin no/g}" /etc/ssh/sshd_config
+    # 是否允许密码为空的用户远程登录。默认为"no"
     sed -i "s/^PermitEmptyPasswords [a-z]*/#&/g; 1,/^#PermitEmptyPasswords [a-z]*/{s/^#PermitEmptyPasswords [a-z]*/PermitEmptyPasswords no/g}" /etc/ssh/sshd_config
+    # 是否使用PAM模块认证
     sed -i "s/^UsePAM [a-z]*/#&/g; 1,/^#UsePAM [a-z]*/{s/^#UsePAM [a-z]*/UsePAM no/g}" /etc/ssh/sshd_config
+    # 检查用户主目录和相关配置文件的权限。如果权限设置错误，会出现登录失败情况
     sed -i "s/^StrictModes [a-z]*/#&/g; 1,/^#StrictModes [a-z]*/{s/^#StrictModes [a-z]*/StrictModes yes/g}" /etc/ssh/sshd_config
+    # 是否取消使用 ~/.ssh/.rhosts 来做为认证。推荐设为yes
     sed -i "s/^IgnoreRhosts [a-z]*/#&/g; 1,/^#IgnoreRhosts [a-z]*/{s/^#IgnoreRhosts [a-z]*/IgnoreRhosts yes/g}" /etc/ssh/sshd_config
-    sed -i "s|AuthorizedKeysFile.*|AuthorizedKeysFile .ssh/${FILENAME}.pub|g" /etc/ssh/sshd_config
+    # 指定系统是否向客户端发送 TCP keepalive 消息
     sed -i "s/^TCPKeepAlive [a-z]*/#&/g; 1,/^#TCPKeepAlive [a-z]*/{s/^#TCPKeepAlive [a-z]*/TCPKeepAlive yes/g}" /etc/ssh/sshd_config
+    # 服务器端向客户端发送消息时常，秒
     sed -i "s/^ClientAliveInterval [0-9]*/#&/g; 1,/^#ClientAliveInterval [0-9]*/{s/^#ClientAliveInterval [0-9]*/ClientAliveInterval 300/g}" /etc/ssh/sshd_config
+    # 客户端未响应次数，超过则服务器端主动断开
     sed -i "s/^ClientAliveCountMax [0-9]/#&/g; 1,/^#ClientAliveCountMax [0-9]/{s/^#ClientAliveCountMax [0-9]/ClientAliveCountMax 3/g}" /etc/ssh/sshd_config
+    # 指定是否显示最后一位用户的登录时间
     sed -i "s/^PrintLastLog [a-z]*/#&/g; 1,/^#PrintLastLog [a-z]*/{s/^#PrintLastLog [a-z]*/PrintLastLog yes/g}" /etc/ssh/sshd_config
+    # 登入后是否显示出一些信息呢，例如上次登入的时间、地点等等
     sed -i "s/^PrintMotd [a-z]*/#&/g; 1,/#PrintMotd[a-z]*/{s/^#PrintMotd [a-z]*/PrintMotd no/g}" /etc/ssh/sshd_config
-    echo "" >> /etc/ssh/sshd_config
-    echo "AllowUsers ${USERNAME}" >> /etc/ssh/sshd_config
+    #使用 rhosts 档案在 /etc/hosts.equiv配合 RSA 演算方式来进行认证, 推荐no。RhostsRSAAuthentication 是version 1
+    sed -i "s/^HostbasedAuthentication [a-z]*/#&/g; 1,/#HostbasedAuthentication[a-z]*/{s/^#HostbasedAuthentication [a-z]*/HostbasedAuthentication no/g}" /etc/ssh/sshd_config
+    # 是否在 RhostsRSAAuthentication 或 HostbasedAuthentication 过程中忽略用户的 ~/.ssh/known_hosts 文件
+    sed -i "s/^IgnoreUserKnownHosts [a-z]*/#&/g; 1,/#IgnoreUserKnownHosts[a-z]*/{s/^#IgnoreUserKnownHosts [a-z]*/IgnoreUserKnownHosts yes/g}" /etc/ssh/sshd_config
+    # 限制登录验证在30秒内
+    sed -i "s/^LoginGraceTime [a-z0-9]*/#&/g; 1,/^#LoginGraceTime [a-z0-9]*/{s/^#LoginGraceTime [a-z0-9]*/LoginGraceTime 30/g}" /etc/ssh/sshd_config
+    # 限制错误登录次数
+    sed -i "s/^MaxAuthTries [0-9]*/#&/g; 1,/^#MaxAuthTries [0-9]*/{s/^#MaxAuthTries [0-9]*/MaxAuthTries 3/g}" /etc/ssh/sshd_config
 
     # 开启sftp日志
     sed -i "s/sftp-server/sftp-server -l INFO -f AUTH/g" /etc/ssh/sshd_config
+    # 限制 SFTP 用户在自己的主目录
+    # ChrootDirectory /home/%u
     echo "" >> /etc/rsyslog.conf
     echo "auth,authpriv.*                                         /var/log/sftp.log" >> /etc/rsyslog.conf
 
-    chmod 700 /home/${USERNAME}/.ssh
-    chmod 600 /home/${USERNAME}/.ssh/${FILENAME}
-
-    # 防火墙设置
-    # FIREWALL=$(firewall-cmd --state 2>/dev/null)
-    # if [[ "${FIREWALL}" != "running" ]]; then
-    #     systemctl start firewalld
-    # fi
     if [[ "${SSHPORT}" != "22" ]]; then
+        # 如果 SELinux 启用下，需要额外针对 SELinux 添加 SSH 新端口权限
+        if sestatus -v | grep enabled; then
+            echo_blue "SELinux 启用，添加 SELinux 下的 SSH 新端口权限..."
+            yum install -y policycoreutils-python
+            semanage port -a -t ssh_port_t -p tcp "${SSHPORT}"
+        fi
+
         echo_blue "正在关闭 SSH 默认端口(22)..."
         firewall-cmd --permanent --remove-service=ssh
         echo_blue "正在添加 SSH 连接新端口(${SSHPORT})..."
-        firewall-cmd --zone=public --add-port=${SSHPORT}/tcp --permanent
+        firewall-cmd --zone=public --add-port="${SSHPORT}"/tcp --permanent
         echo_blue "正在重启防火墙"
         firewall-cmd --reload
     fi
 
+    echo_blue "已完成 SSH 配置，正在重启 SSH 服务..."
     service sshd restart
     service rsyslog restart
-    echo_green "[√] SSH 配置修改成功!"
 
     if [[ "${DOWNFILE}" = "y" || "${DOWNFILE}" = "Y" ]]; then
         echo_green "登录方式(根据实际情况修改证书路径，如设置了证书密码还需要输入密码)："
@@ -212,17 +252,21 @@ ssh_setting() {
     echo_yellow "是否连接成功?"
     read -r -p "成功(Y)/失败(N): " SSHSUSS
     if [[ "${SSHSUSS}" = "n" || "${SSHSUSS}" = "N" ]]; then
-        echo_yellow "是否删除新添加的用户: ${USERNAME}?"
-        read -r -p "是(Y)/否(N): " DELUSER
-        if [[ "${DELUSER}" = "n" || "${DELUSER}" = "N" ]]; then
-            userdel ${USERNAME}
-            rm -rf /home/${USERNAME}
-            echo_red "删除用户成功!"
+        if [ -n "${USERNAME}" ]; then
+            echo_yellow "是否删除新添加的用户: ${USERNAME}?"
+            read -r -p "是(Y)/否(N): " DELUSER
+            if [[ "${DELUSER}" = "y" || "${DELUSER}" = "Y" ]]; then
+                userdel "${USERNAME}"
+                rm -rf "/home/${USERNAME}"
+                echo_red "删除用户成功!"
+            fi
         fi
 
         cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
         service sshd restart
         echo_red "已复原 SSH 配置!"
+    else
+        echo_green "[√] SSH 配置修改成功!"
     fi
 }
 
@@ -232,7 +276,7 @@ install_git() {
 
     wget -c https://github.com/git/git/archive/master.tar.gz -O git-master.tar.gz
     tar xzf git-master.tar.gz
-    cd git-master
+    cd git-master || exit
 
     make configure
     ./configure --prefix=/usr/local
@@ -278,11 +322,11 @@ install_vim() {
     if [ $? -eq 0 ]; then
         yum remove -y vim
         tar zxf vim-master.tar.gz
-        cd vim-master/src
+        cd vim-master/src || exit
         make && make install
 
-        echo_green "[√] vim 升级成功!"
-        cd ../..
+        echo_green "vim 升级成功! 当前版本: $(vim --version | head -n 1)"
+        cd ../.. || exit
     else
         echo_red "[!] vim 安装源下载失败!"
     fi
@@ -319,7 +363,7 @@ install_cmake() {
 
     wget -c https://github.com/Kitware/CMake/releases/download/v${CMAKEVER}/cmake-${CMAKEVER}.tar.gz
     tar zxf cmake-${CMAKEVER}.tar.gz
-    cd cmake-${CMAKEVER}
+    cd cmake-${CMAKEVER} || exit
 
     ./bootstrap
     make && make install
@@ -344,7 +388,7 @@ install_acme() {
 
         acme.sh --upgrade --auto-upgrade
 
-        ins_end "/root/.acme.sh/acme.sh"
+        ins_end "acme.sh"
     fi
 }
 
@@ -354,7 +398,7 @@ install_python3() {
 
     wget -c --no-check-certificate https://www.python.org/ftp/python/${PYTHONVER}/Python-${PYTHONVER}.tgz
     tar xf Python-${PYTHONVER}.tgz
-    cd Python-${PYTHONVER}
+    cd Python-${PYTHONVER} || exit
 
     ./configure --prefix=/usr/local/python3.7 --enable-optimizations
     make && make install
@@ -393,8 +437,8 @@ install_uwsgi() {
     pip3 install uwsgi
     ln -sf /usr/local/python3.7/bin/uwsgi /usr/local/bin/uwsgi
 
-    mkdir -p ${INSHOME}/wwwconf/uwsgi
-    chown -R nobody:nobody ${INSHOME}/wwwconf
+    mkdir -p "${INSHOME}/wwwconf/uwsgi"
+    chown -R nobody:nobody "${INSHOME}/wwwconf"
 
     TMPCONFDIR=${INSHOME}/wwwconf/uwsgi/
 
@@ -551,7 +595,7 @@ install_ikev2() {
     install_acme
 
     mkdir ikev2
-    cd ikev2
+    cd ikev2 || exit
     wget --no-check-certificate https://raw.githubusercontent.com/quericy/one-key-ikev2-vpn/master/one-key-ikev2.sh
     chmod +x one-key-ikev2.sh
 
@@ -566,12 +610,12 @@ install_ikev2() {
     done
     echo_yellow "是否绑定更多域名(如不绑定请直接回车)？"
     read -r -p "多个域名请用半角空格隔开: " MOREDOMAIN
-    DAMIN="-d ${MAINDOMAIN}"$(echo ${MOREDOMAIN} | sed "s/ / -d&/g" | sed "s/^/-d &/g")
+    DAMIN="-d ${MAINDOMAIN}"$(echo "${MOREDOMAIN}" | sed "s/ / -d&/g" | sed "s/^/-d &/g")
 
-    if [ -f ~/.acme.sh/${MAINDOMAIN}/ca.cer ]; then
-        cp ~/.acme.sh/${MAINDOMAIN}/ca.cer ca.cert.pem
-        cp ~/.acme.sh/${MAINDOMAIN}/${MAINDOMAIN}.cer server.cert.pem
-        cp ~/.acme.sh/${MAINDOMAIN}/${MAINDOMAIN}.key server.pem
+    if [ -f ~/.acme.sh/"${MAINDOMAIN}"/ca.cer ]; then
+        cp ~/.acme.sh/"${MAINDOMAIN}"/ca.cer ca.cert.pem
+        cp ~/.acme.sh/"${MAINDOMAIN}"/"${MAINDOMAIN}".cer server.cert.pem
+        cp ~/.acme.sh/"${MAINDOMAIN}"/"${MAINDOMAIN}".key server.pem
     else
         echo_yellow "请选择证书验证方式"
         read -r -p "dns 或 web: " ACMETYPE
@@ -626,7 +670,7 @@ install_ikev2() {
 
     bash one-key-ikev2.sh
     cd ..
-}
+}  # todo
 
 install_nodejs() {
     ins_begin "Nodejs"
@@ -641,7 +685,7 @@ install_nodejs() {
     ins_end "npm"
 }
 
-Do_Query() {
+do_query() {
     echo "$1" > /tmp/.mysql.tmp
     /usr/local/mysql/bin/mysql --defaults-file=~/.my.cnf < /tmp/.mysql.tmp
     return $?
@@ -666,7 +710,7 @@ install_mysql() {
     yum remove -y mysql-server mysql mysql-libs
     yum install -y ncurses-devel gcc gcc-c++ bison
     yum -y remove boost-*
-    rm -rf ${INSHOME}/database/mysql
+    rm -rf "${INSHOME}/database/mysql"
     rm -rf /usr/local/mysql
 
     wget -c http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz
@@ -676,13 +720,13 @@ install_mysql() {
 
     wget -c https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQLVER}.tar.gz
     tar zxf mysql-${MYSQLVER}.tar.gz
-    cd mysql-${MYSQLVER}
+    cd mysql-${MYSQLVER} || exit
 
     rm -f /etc/my.cnf
     groupadd mysql
     useradd -r -g mysql -s /bin/false mysql
-    mkdir -p ${INSHOME}/database/mysql
-    chown -R mysql:mysql ${INSHOME}/database/mysql
+    mkdir -p "${INSHOME}/database/mysql"
+    chown -R mysql:mysql "${INSHOME}/database/mysql"
 
     if [[ ${MemTotal} -lt 1024 ]]; then
         echo_blue "内存过低，创建 SWAP 交换区..."
@@ -693,7 +737,7 @@ install_mysql() {
         # echo "/var/swapfile swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
     fi
 
-    cmake . -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/usr/local/boost -DMYSQL_DATADIR=${INSHOME}/database/mysql -DDEFAULT_CHARSET=utf8 -DDEFAULT_COLLATION=utf8_general_ci
+    cmake . -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/usr/local/boost -DMYSQL_DATADIR="${INSHOME}"/database/mysql -DDEFAULT_CHARSET=utf8 -DDEFAULT_COLLATION=utf8_general_ci
     make && make install
 
     if [[ ${MemTotal} -lt 1024 ]]; then
@@ -855,7 +899,7 @@ EOF
         sed -i "s#^performance_schema_max_table_instances.*#performance_schema_max_table_instances = 10000#" /etc/my.cnf
     fi
 
-    /usr/local/mysql/bin/mysqld --initialize-insecure --basedir=/usr/local/mysql --datadir=${INSHOME}/database/mysql --user=mysql
+    /usr/local/mysql/bin/mysqld --initialize-insecure --basedir=/usr/local/mysql --datadir="${INSHOME}"/database/mysql --user=mysql
     # --initialize 会生成一个随机密码(~/.mysql_secret)，--initialize-insecure 不会生成密码
 
     cat > /etc/ld.so.conf.d/mysql.conf<<EOF
@@ -904,25 +948,25 @@ user=root
 password='${DBROOTPWD}'
 EOF
     chmod 600 ~/.my.cnf
-    Do_Query ""
+    do_query ""
     if [ $? -eq 0 ]; then
          echo_green "OK, MySQL root password correct."
     fi
     echo_blue "更新 ROOT 用户密码..."
-    Do_Query "UPDATE mysql.user SET authentication_string=PASSWORD('${DBROOTPWD}') WHERE User='root';"
+    do_query "UPDATE mysql.user SET authentication_string=PASSWORD('${DBROOTPWD}') WHERE User='root';"
     [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
     echo_blue "删除匿名用户..."
-    Do_Query "DELETE FROM mysql.user WHERE User='';"
-    Do_Query "DROP USER ''@'%';"
+    do_query "DELETE FROM mysql.user WHERE User='';"
+    do_query "DROP USER ''@'%';"
     [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
     echo_blue "禁用 ROOT 远程登录..."
-    Do_Query "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+    do_query "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
     [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
     echo_blue "删除测试数据库..."
-    Do_Query "DROP DATABASE test;"
+    do_query "DROP DATABASE test;"
     [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
     echo_blue "刷新数据库权限配置..."
-    Do_Query "FLUSH PRIVILEGES;"
+    do_query "FLUSH PRIVILEGES;"
     [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
 
     /etc/init.d/mysqld stop
@@ -944,7 +988,7 @@ install_start-stop-daemon() {
     wget -c http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${DAEMONVER}.tar.xz -O start-stop-daemon_${DAEMONVER}.tar.xz
     mkdir start-stop-daemon_${DAEMONVER}
     tar -xf start-stop-daemon_${DAEMONVER}.tar.xz -C ./start-stop-daemon_${DAEMONVER} --strip-components 1
-    cd start-stop-daemon_${DAEMONVER}
+    cd start-stop-daemon_${DAEMONVER} || exit
 
     ./configure
     make
@@ -965,9 +1009,9 @@ install_nginx() {
     install_acme
 
     git clone https://github.com/google/ngx_brotli.git
-    cd ngx_brotli
+    cd ngx_brotli || exit
     git submodule update --init
-    cd ../
+    cd ..
 
     wget -c  https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz
     tar xzf OpenSSL_1_1_1.tar.gz
@@ -975,7 +1019,7 @@ install_nginx() {
 
     wget -c https://nginx.org/download/nginx-${NGINXVER}.tar.gz
     tar zxf nginx-${NGINXVER}.tar.gz
-    cd nginx-${NGINXVER}
+    cd nginx-${NGINXVER} || exit
     sed -i "s/${NGINXVER}/8.8.8.8/g" src/core/nginx.h
 
     ./configure \
@@ -993,16 +1037,16 @@ install_nginx() {
     ln -sf /usr/local/nginx/sbin/nginx /usr/local/bin/nginx
     rm -f /usr/local/nginx/conf/nginx.conf
 
-    mkdir -p ${INSHOME}/wwwlogs
-    chmod 777 ${INSHOME}/wwwlogs
+    mkdir -p "${INSHOME}/wwwlogs"
+    chmod 777 "${INSHOME}/wwwlogs"
 
-    mkdir -p ${INSHOME}/wwwroot
-    chmod +w ${INSHOME}/wwwroot
-    chown -R nobody:nobody ${INSHOME}/wwwroot
+    mkdir -p "${INSHOME}/wwwroot"
+    chmod +w "${INSHOME}/wwwroot"
+    chown -R nobody:nobody "${INSHOME}/wwwroot"
 
-    mkdir -p ${INSHOME}/wwwconf/nginx
-    chown -R nobody:nobody ${INSHOME}/wwwconf
-    chmod +w ${INSHOME}/wwwconf
+    mkdir -p "${INSHOME}/wwwconf/nginx"
+    chown -R nobody:nobody "${INSHOME}/wwwconf"
+    chmod +w "${INSHOME}/wwwconf"
 
     cat > /usr/local/nginx/conf/nginx.conf<<EOF
 worker_processes auto;
@@ -1056,7 +1100,7 @@ http
         brotli_comp_level  6;
         brotli_types       text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript application/javascript image/svg+xml;
 
-        #limit_conn_zone $binary_remote_addr zone=perip:10m;
+        #limit_conn_zone    $binary_remote_addr zone=perip:10m;
         ##If enable limit_conn_zone,add "limit_conn perip 10;" to server section.
 
         server_tokens off;
@@ -1200,11 +1244,12 @@ install_php() {
 
     wget -c https://libzip.org/download/libzip-1.5.1.tar.gz
     tar zxf libzip-1.5.1.tar.gz
-    cd libzip-1.5.1
+    cd libzip-1.5.1 || exit
     mkdir build
-    cd build
+    cd build || exit
     cmake .. && make && make install
-    cd ../..
+    cd ..
+    cd ..
 
     cat > /etc/ld.so.conf.d/php.local.conf<<EOF
 /usr/local/lib64
@@ -1216,7 +1261,7 @@ EOF
 
     wget -c http://cn2.php.net/get/php-${PHPVER}.tar.gz/from/this/mirror -O php-${PHPVER}.tar.gz
     tar zxf php-${PHPVER}.tar.gz
-    cd php-${PHPVER}
+    cd php-${PHPVER} || exit
     ./configure --prefix=/usr/local/php \
                 --with-config-file-path=/usr/local/php/etc \
                 --with-config-file-scan-dir=/usr/local/php/conf.d \
@@ -1271,12 +1316,10 @@ EOF
     ln -sf /usr/local/php/sbin/php-fpm /usr/local/bin/php-fpm
     rm -f /usr/local/php/conf.d/*
 
-    echo_blue "Copy new php configure file..."
     mkdir -p /usr/local/php/{etc,conf.d}
     cp php.ini-production /usr/local/php/etc/php.ini
 
     # php extensions
-    echo_blue "Modify php.ini......"
     sed -i "s/post_max_size =.*/post_max_size = 50M/g" /usr/local/php/etc/php.ini
     sed -i "s/upload_max_filesize =.*/upload_max_filesize = 50M/g" /usr/local/php/etc/php.ini
     sed -i "s/;date.timezone =.*/date.timezone = PRC/g" /usr/local/php/etc/php.ini
@@ -1353,7 +1396,6 @@ EOF
     sed -i "s#pm.min_spare_servers.*#pm.min_spare_servers = $(($MemTotal/2/40))#" /usr/local/php/etc/php-fpm.conf
     sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = $(($MemTotal/2/20))#" /usr/local/php/etc/php-fpm.conf
 
-    echo_blue "Copy php-fpm init.d file..."
     cp sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
     sed -i "s/echo \" done\"/echo -e \"\\\\033[32m[OK]\\\\033[0m\"/g" /etc/init.d/php-fpm
     sed -i "s/echo \" failed\"/echo -e \"\\\\033[31m[Fail]\\\\033[0m\"/g" /etc/init.d/php-fpm
@@ -1410,12 +1452,12 @@ install_redis() {
     groupadd redis
     useradd -r -g redis -s /bin/false redis
     mkdir -p /usr/local/redis/{etc,run}
-    mkdir -p ${INSHOME}/database/redis
-    chown -R redis:redis ${INSHOME}/database/redis
+    mkdir -p "${INSHOME}/database/redis"
+    chown -R redis:redis "${INSHOME}/database/redis"
 
     wget -c http://download.redis.io/releases/redis-${REDISVER}.tar.gz
     tar zxf redis-${REDISVER}.tar.gz
-    cd redis-${REDISVER}
+    cd redis-${REDISVER} || exit
     make && make PREFIX=/usr/local/redis install
 
     cp redis.conf  /usr/local/redis/etc/
@@ -1579,17 +1621,17 @@ clean_install() {
     echo_yellow "是否清理安装文件?"
     read -r -p "全部(A)是(Y)/否(N): " CLRANINS
     if [[ ${CLRANINS} = "y" || ${CLRANINS} = "Y" ]]; then
-        cd ${CUR_DIR}/src
-        for deldir in `ls .`
+        cd "${CUR_DIR}/src" || exit
+        for deldir in $(ls .)
         do
-            if [ -d $deldir ]; then
-                rm -rf $deldir
+            if [ -d "${deldir}" ]; then
+                rm -rf "${deldir}"
             fi
         done
-        cd ${CUR_DIR}
+        cd "${CUR_DIR}" || exit
         echo_blue "安装文件清理完成。"
     elif [[ ${CLRANINS} = "a" || ${CLRANINS} = "A" ]]; then
-        cd ${CUR_DIR}
+        cd "${CUR_DIR}" || exit
         rm -rf src
         echo_blue "安装文件清理完成。"
     fi
@@ -1645,8 +1687,8 @@ fi
 echo_blue "系统安装目录：${INSHOME}"
 mkdir -p ${INSHOME}
 
-mkdir -p ${CUR_DIR}/src
-cd ${CUR_DIR}/src
+mkdir -p "${CUR_DIR}/src"
+cd "${CUR_DIR}/src" || exit
 
 disable_selinux
 
@@ -1664,6 +1706,12 @@ echo_yellow "是否添加用户?"
 read -r -p "是(Y)/否(N): " ADDUSER
 if [[ ${ADDUSER} = "y" || ${ADDUSER} = "Y" ]]; then
     add_user
+fi
+
+echo_yellow "是否修改 SSH 配置?"
+read -r -p "是(Y)/否(N): " SETSSH
+if [[ ${SETSSH} = "y" || ${SETSSH} = "Y" ]]; then
+    ssh_setting
 fi
 
 show_ver "cmake --version" "CMake"
@@ -1706,7 +1754,7 @@ show_ver "python3 --version" "Python3"
 read -r -p "是(Y)/否(N): " INSPYTHON3
 if [[ ${INSPYTHON3} = "y" || ${INSPYTHON3} = "Y" ]]; then
     install_python3
-    install_uwsgi
+    install_uwsgi "$@"
 fi
 
 show_ver "redis-server --version" "Redis"
