@@ -51,7 +51,7 @@ disable_selinux() {
 }
 
 color_text() {
-    echo -e " \e[0;$2m$1\e[0m"
+    echo -e "\e[0;$2m$1\e[0m"
 }
 
 echo_red() {
@@ -263,6 +263,10 @@ ssh_setting() {
         fi
 
         cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
+        firewall-cmd --remove-port="${SSHPORT}"/tcp --permanent
+        firewall-cmd --permanent --add-service=ssh
+
+        firewall-cmd --reload
         service sshd restart
         echo_red "已复原 SSH 配置!"
     else
