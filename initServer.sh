@@ -161,8 +161,8 @@ ssh_setting() {
         if [[ "${DOWNFILE}" = "y" || "${DOWNFILE}" = "Y" ]]; then
             # 是否允许使用基于密码的认证
             sed -i "s/^PasswordAuthentication [a-z]*/#&/g; 1,/^#PasswordAuthentication [a-z]*/{s/^#PasswordAuthentication [a-z]*/PasswordAuthentication no/g}" /etc/ssh/sshd_config
+            sed -i "s|AuthorizedKeysFile.*|AuthorizedKeysFile .ssh/${FILENAME}.pub|g" /etc/ssh/sshd_config
         fi
-        sed -i "s|AuthorizedKeysFile.*|AuthorizedKeysFile .ssh/${FILENAME}.pub|g" /etc/ssh/sshd_config
         #echo "" >> /etc/ssh/sshd_config
         #echo "AllowUsers ${USERNAME}" >> /etc/ssh/sshd_config
     fi
@@ -263,10 +263,13 @@ ssh_setting() {
         fi
 
         cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
+        echo_blue "正在删除新增 SSH 端口..."
         firewall-cmd --remove-port="${SSHPORT}"/tcp --permanent
+        echo_blue "正在恢复默认 SSH 端口..."
         firewall-cmd --permanent --add-service=ssh
-
+        echo_blue "正在重启防火墙..."
         firewall-cmd --reload
+        echo_blue "正在重启 SSH 服务..."
         service sshd restart
         echo_red "已复原 SSH 配置!"
     else
