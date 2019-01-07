@@ -76,7 +76,7 @@ ins_begin() {
 }
 
 ins_end() {
-    readonly version=$($1 --version)
+    local version=$($1 --version)
     [ $? -eq 0 ] && echo_green "[√] $MODE 安装成功! 当前版本：$version" || echo_red "[x] $MODE 安装失败! "
 }
 
@@ -245,7 +245,7 @@ ssh_setting() {
         echo "ssh -i ./${FILENAME} -p ${SSHPORT} ${USERNAME}@${HOSTIP}"
     else
         echo_green "登录方式(需要输入用户密码 ${PASSWORD})："
-        echo "ssh -p ${SSHPORT} ${USERNAME}@${HOSTIP}"
+        echo "ssh -p ${SSHPORT} $(whoami)@${HOSTIP}"
     fi
 
     echo_blue "[!] 请链接一个新的 ssh 到服务器，看是否能连接成功"
@@ -458,7 +458,7 @@ install_uwsgi() {
 # Short-Description: starts the uwsgi web server
 # Description:       starts uwsgi using start-stop-daemon
 ### END INIT INFO
- 
+
 # Modify by lykyl
 # Ver:1.1
 # Description: script can loads multiple configs now.
@@ -469,6 +469,16 @@ DAEMON=/usr/local/python3.7/bin/uwsgi
 CONFIGDIR=${INSHOME}/wwwconf/uwsgi
 PIDDIR=/tmp
 
+log_success_msg(){
+    printf "%-60s \\033[32m[%s]\\033[0m\\n" "\$@"
+}
+log_failure_msg(){
+    printf "%-60s \\033[31m[%s]\\033[0m\\n" "\$@"
+}
+log_warning_msg(){
+    printf "%-60s \\033[33m[%s]\\033[0m\\n" "\$@"
+}
+
 iniList=\$(ls \${CONFIGDIR}/*.ini 2>/dev/null)
 
 start() {
@@ -478,13 +488,13 @@ start() {
         SiteName=\${i:${#TMPCONFDIR}:0-4}
         pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
         if [ ! -z "\$pid" ]; then
-            echo -e "\\t\${SiteName}: \\033[33m[already running]\\033[0m"
+            log_warning_msg "        \${SiteName}: " "Already Running"
         else
             \$DAEMON --ini \${i} 2>/dev/null
             if [ \$? -eq 0 ]; then
-                echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
+                log_success_msg "        \${SiteName}: " "SUCCESS"
             else
-                echo -e "\\t\${SiteName}: \\033[31m[Fail]\\033[0m"
+                log_failure_msg "        \${SiteName}: " "Failed"
             fi
         fi
     done
@@ -499,12 +509,12 @@ stop() {
         if [ ! -z "\$pid" ]; then
             \$DAEMON --stop \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
             if [ \$? -eq 0 ]; then
-                echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
+                log_success_msg "        \${SiteName}: " "SUCCESS"
             else
-                echo -e "\\t\${SiteName}: \\033[31m[Fail]\\033[0m"
+                log_failure_msg "        \${SiteName}: " "Failed"
             fi
         else
-            echo -e "\\t\${SiteName}: \\033[33m[not running]\\033[0m"
+            log_warning_msg "        \${SiteName}: " "Not Running"
         fi
     done
 }
@@ -518,12 +528,12 @@ reload() {
         if [ ! -z "\$pid" ]; then
             \$DAEMON --reload \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
             if [ \$? -eq 0 ]; then
-                echo -e "\\t\${SiteName}: \\033[32m[OK]\\033[0m"
+                log_success_msg "        \${SiteName}: " "SUCCESS"
             else
-                echo -e "\\t\${SiteName}: \\033[31m[Fail]\\033[0m"
+                log_failure_msg "        \${SiteName}: " "Failed"
             fi
         else
-            echo -e "\\t\${SiteName}: \\033[33m[not running]\\033[0m"
+            log_warning_msg "        \${SiteName}: " "Not Running"
         fi
     done
 }
@@ -531,13 +541,13 @@ reload() {
 status() {
     pid=\$(ps aux | grep \$DAEMON | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
     if [ ! -z "\$pid" ]; then
-        echo -e "\${DESC}: is running"
+        echo "\${DESC} application status: "
         for i in \${pid[@]}
         do
-            echo -e "\\trunning application: \\033[32m\${i:${#TMPCONFDIR}:0-4}\\033[0m"
+            log_success_msg "        \${i:${#TMPCONFDIR}:0-4}: " "Running"
         done
     else
-        echo -e "\${DESC}: \\033[33m[not application running]\\033[0m"
+        log_warning_msg "\${DESC} application status: " "All Application Stopped"
     fi
 }
 
@@ -553,7 +563,7 @@ kill() {
 }
 
 [ -x "\$DAEMON" ] || exit 0
-  
+
 case "\$1" in
     status)
         status
@@ -1147,46 +1157,52 @@ CONFIGFILE=/usr/local/nginx/conf/\$NAME.conf
 
 test -x \$DAEMON || exit 1
 
+log_success_msg(){
+    printf "%-60s \\033[32m[%s]\\033[0m\\n" "\$@"
+}
+log_failure_msg(){
+    printf "%-60s \\033[31m[%s]\\033[0m\\n" "\$@"
+}
+log_warning_msg(){
+    printf "%-60s \\033[33m[%s]\\033[0m\\n" "\$@"
+}
+
 case "\$1" in
     start)
-        echo -n "Starting \$DESC: "
         start-stop-daemon --start --quiet --pidfile \$PIDFILE --exec \$DAEMON -- \$DAEMON_OPTS || true
         if [ \$? -eq 0 ]; then
-            echo -e "\\033[32m[OK]\\033[0m"
+            log_success_msg "Starting \$DESC: " "SUCCESS"
         else
-            echo -e "\\033[31m[Fail]\\033[0m"
+            log_failure_msg "Starting \$DESC: " "Failed"
         fi
         ;;
 
     stop)
-        echo -n "Stopping \$DESC: "
         start-stop-daemon --stop --quiet --pidfile \$PIDFILE --exec \$DAEMON || true
         if [ \$? -eq 0 ]; then
-            echo -e "\\033[32m[OK]\\033[0m"
+            log_success_msg "Stopping \$DESC: " "SUCCESS"
         else
-            echo -e "\\033[31m[Fail]\\033[0m"
+            log_failure_msg "Stopping \$DESC: " "Failed"
         fi
         ;;
 
     restart|force-reload)
-        echo -n "Restarting \$DESC: "
         start-stop-daemon --stop --quiet --pidfile \$PIDFILE --exec \$DAEMON || true
         sleep 1
         start-stop-daemon --start --quiet --pidfile \$PIDFILE --exec \$DAEMON -- \$DAEMON_OPTS || true
         if [ \$? -eq 0 ]; then
-            echo -e "\\033[32m[OK]\\033[0m"
+            log_success_msg "Restarting \$DESC: " "SUCCESS"
         else
-            echo -e "\\033[31m[Fail]\\033[0m"
+            log_failure_msg "Restarting \$DESC: " "Failed"
         fi
         ;;
 
     reload)
-        echo -n "Reloading \$DESC configuration: "
         start-stop-daemon --stop --signal HUP --quiet --pidfile \$PIDFILE --exec \$DAEMON || true
         if [ \$? -eq 0 ]; then
-            echo -e "\\033[32m[OK]\\033[0m"
+            log_success_msg "Reloading \$DESC configuration: " "SUCCESS"
         else
-            echo -e "\\033[31m[Fail]\\033[0m"
+            log_failure_msg "Reloading \$DESC configuration: " "Failed"
         fi
         ;;
 
@@ -1195,23 +1211,27 @@ case "\$1" in
         start-stop-daemon --status --pidfile \$PIDFILE
         case "\$?" in
             0)
-                echo -e "\\033[32m[is running]\\033[0m"
+                log_success_msg "\$DESC status: " "Running"
                 ;;
             1)
-                echo -e "\\033[31m[is not running and the pid file exists]\\033[0m"
+                log_failure_msg "\$DESC status: (pid file exists)" "Stopped"
                 ;;
             3)
-                echo -e "\\033[33m[is not running]\\033[0m"
+                log_warning_msg "\$DESC status: " "Stopped"
                 ;;
             4)
-                echo -e "\\033[31m[unable to determine status]\\033[0m"
+                log_failure_msg "\$DESC status: " "Unable"
                 ;;
         esac
         ;;
 
-    configtest)
-        echo -n "Test \$NAME configure files... "
+    configtest|test)
         \$DAEMON -t
+        if [ \$? -eq 0 ]; then
+            log_success_msg "Test \$DESC configuration: " "OK"
+        else
+            log_failure_msg "Test \$DESC configuration: " "Failed"
+        fi
         ;;
 
     *)
@@ -1397,9 +1417,17 @@ EOF
     sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = $(($MemTotal/2/20))#" /usr/local/php/etc/php-fpm.conf
 
     cp sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
-    sed -i "s/echo \" done\"/echo -e \"\\\\033[32m[OK]\\\\033[0m\"/g" /etc/init.d/php-fpm
-    sed -i "s/echo \" failed\"/echo -e \"\\\\033[31m[Fail]\\\\033[0m\"/g" /etc/init.d/php-fpm
-    sed -i "s/echo \" failed. Use force-quit\"/echo -e \"\\\\033[31m[Fail]\\\\033[0m \\\\033[33mUse force-quit\\\\033[0m\"/g" /etc/init.d/php-fpm
+    sed -i '20 s/^/log_success_msg(){\n\tprintf "%-60s \\033[32m[%s]\\033[0m\\n" "\$@"\n}\nlog_failure_msg(){\n\tprintf "%-60s \\033[31m[%s]\\033[0m\\n" "\$@"\n}\nlog_warning_msg(){\n\tprintf "%-60s \\033[33m[%s]\\033[0m\\n" "\$@"\n}\n/' /etc/init.d/php-fpm
+    sed -i 's/echo -n "/title="/g'  /etc/init.d/php-fpm
+    sed -i "s/echo \" failed\"/log_failure_msg \"\$title\" \"Failed\" /g"  /etc/init.d/php-fpm
+    sed -i "s/echo \" done\"/log_success_msg \"\$title\" \"Success\" /g"  /etc/init.d/php-fpm
+    sed -i "s/echo \"warning, no pid file found - php-fpm is not running ?\"/log_warning_msg \"\$title\" \"Not Running\"/g" /etc/init.d/php-fpm
+    sed -i "s/echo \" failed. Use force-quit\"/log_failure_msg \"\$title\" \"Failed. Use force-quit\"/g"  /etc/init.d/php-fpm
+    sed -i 's/echo "php-fpm is stopped"/log_warning_msg "php-fpm status: " "Stopped"/g' /etc/init.d/php-fpm
+    sed -i "s/echo \"php-fpm (pid \$PID) is running...\"/log_success_msg \"php-fpm status: (pid \$PID)\" \"Running\"/g"  /etc/init.d/php-fpm
+    sed -i 's/echo "php-fpm dead but pid file exists"/log_failure_msg "php-fpm status: (pid file exists)" "Stopped"/g' /etc/init.d/php-fpm
+    sed -i "/\$php_fpm_BIN -t/a\\\t\tif [ \$? -eq 0 ]; then\n\t\t\tlog_success_msg \"Test php-fpm configuration: \" \"OK\"\n\t\telse\n\t\t\tlog_failure_msg \"Test php-fpm configuration: \" \"Failed\"\n\t\tfi\n" /etc/init.d/php-fpm
+
     chmod +x /etc/init.d/php-fpm
     chkconfig --add php-fpm
     chkconfig php-fpm on
@@ -1498,6 +1526,16 @@ PIDFILE=/usr/local/redis/run/redis.pid
 CONF=/usr/local/redis/etc/redis.conf
 DESC=Redis-Server
 
+log_success_msg(){
+    printf "%-60s \\033[32m[%s]\\033[0m\\n" "\$@"
+}
+log_failure_msg(){
+    printf "%-60s \\033[31m[%s]\\033[0m\\n" "\$@"
+}
+log_warning_msg(){
+    printf "%-60s \\033[33m[%s]\\033[0m\\n" "\$@"
+}
+
 redis_pid() {
     echo \`ps aux | grep \${REDISPORT} | grep -v grep | awk '{ print \$2 }'\`
 }
@@ -1507,13 +1545,13 @@ start() {
     # if [ -f "\$PIDFILE" ]; then
     echo -n "Starting \$DESC: "
     if [ -n "\$pid" ]; then
-        echo -e "\\033[33m[is running with pid: \$pid]\\033[0m"
+        log_warning_msg "Starting \$DESC: (pid: \$pid)" "Already Running"
     else
         /bin/su -m -c "cd \$BASEDIR/bin && \$EXEC \$CONF" \$REDIS_USER
         if [ \$? -eq 0 ]; then
-            echo -e "\\033[32m[OK]\\033[0m"
-        else
-            echo -e "\\033[31m[Fail]\\033[0m"
+            log_success_msg "Starting \$DESC: " "SUCCESS"
+        else 
+            log_failure_msg "Starting \$DESC: " "Failed"
         fi
     fi
 }
@@ -1523,24 +1561,33 @@ status() {
     echo -n "\$DESC status: "
     # if [ -f "\$PIDFILE" ]; then
     if [ -n "\$pid" ]; then
-        echo -e "\\033[32m[is running with pid: \$pid]\\033[0m"
+        log_success_msg "\$DESC status: (pid: \$pid)" "Running"
     else
-        echo -e "\\033[33m[is not running]\\033[0m"
+        log_warning_msg "\$DESC status: is not running" "Stopped"
     fi
 }
 
 stop() {
     pid=\$(redis_pid)
-    echo -n "Stopping \$DESC: "
     if [ -n "\$pid" ]; then
         \$REDIS_CLI -p \$REDISPORT -a ${REDISPWD} shutdown
         if [ \$? -eq 0 ]; then
-            echo -e "\\033[32m[OK]\\033[0m"
+            log_success_msg "Stopping \$DESC: " "SUCCESS"
         else
-            echo -e "\\033[31m[Fail]\\033[0m"
+            log_failure_msg "Stopping \$DESC: " "Failed"
         fi
     else
-        echo "\\033[33m[is not running]\\033[0m"
+        log_warning_msg "Stopping \$DESC: " "Not Running"
+    fi
+}
+
+kill() {
+    killall redis-server
+    pid=\$(redis_pid)
+    if [ -n "\$pid" ]; then
+        log_failure_msg "Killing \$DESC: " "Failed"
+    else
+        log_success_msg "Killing \$DESC: " "SUCCESS"
     fi
 }
 
@@ -1560,14 +1607,7 @@ case "\$1" in
         status
         ;;
     kill)
-        echo -n "Kill \$DESC: "
-        killall redis-server
-        pid=\$(redis_pid)
-        if [ -n "\$pid" ]; then
-            echo -e "\\033[31m[Fail]\\033[0m"
-        else
-            echo -e "\\033[32m[OK]\\033[0m"
-        fi
+        kill
         ;;
   *)
     echo "Usage: /etc/init.d/redis {start|stop|restart|status|kill}"
@@ -1605,7 +1645,7 @@ register_management-tool() {
     done
     wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
     sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/${MYNAME}
-    sed -i "s|/pnmp/|${MYNAME}/|g" /usr/local/bin/${MYNAME}
+    sed -i "s|pnmp|${MYNAME}|g" /usr/local/bin/${MYNAME}
     chmod +x /usr/local/bin/${MYNAME}
 
     if [[ ${NGINX} = "y" || ${NGINX} = "Y" ]]; then
@@ -1754,7 +1794,7 @@ show_ver "python3 --version" "Python3"
 read -r -p "是(Y)/否(N): " INSPYTHON3
 if [[ ${INSPYTHON3} = "y" || ${INSPYTHON3} = "Y" ]]; then
     install_python3
-    install_uwsgi "$@"
+    install_uwsgi
 fi
 
 show_ver "redis-server --version" "Redis"

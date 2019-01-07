@@ -1,6 +1,10 @@
 # initServer
 一个服务器初始化脚本工具。脚本借鉴了 [lnmp](https://github.com/licess/lnmp) 的许多写法，Nginx 的编译安装及配置参考了 [本博客开始支持 TLS 1.3](https://imququ.com/post/enable-tls-1-3.html) 的方式。在此感谢两位大大。
 
+## 使用方式
+
+`curl https://raw.githubusercontent.com/zsenliao/initServer/master/initServer.sh -O`
+
 ## 主要功能
 
 * 添加用户及 SSH 配置。可选择添加用户，以及是否自定义配置 `SSH`。如选择是，按照提示「傻瓜」式操作就好。
