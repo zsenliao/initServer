@@ -1600,7 +1600,7 @@ status() {
 stop() {
     pid=\$(redis_pid)
     if [ -n "\$pid" ]; then
-        \$REDIS_CLI -p \$REDISPORT -a ${REDISPWD} shutdown
+        \$REDIS_CLI -p \$REDISPORT -a ${REDISPWD} shutdown 2>/dev/null
         if [ \$? -eq 0 ]; then
             log_success_msg "Stopping \$DESC: " "SUCCESS"
         else
@@ -1674,7 +1674,7 @@ register_management-tool() {
         fi
     done
     wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
-    sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/${MYNAME}
+    sed -i "s|/home|${INSHOME}|g" /usr/local/bin/${MYNAME}
     sed -i "s|pnmp|${MYNAME}|g" /usr/local/bin/${MYNAME}
     chmod +x /usr/local/bin/${MYNAME}
 
