@@ -1451,6 +1451,7 @@ EOF
     sed -i 's/echo -n "/title="/g'  /etc/init.d/php-fpm
     sed -i 's/php-fpm "/php-fpm: "/g'  /etc/init.d/php-fpm
     sed -i 's/exit 1/exit 0/g'  /etc/init.d/php-fpm
+    sed -i '/echo -n ./d' /etc/init.d/php-fpm
     sed -i "s/echo \" failed\"/log_failure_msg \"\$title\" \"Failed\" /g"  /etc/init.d/php-fpm
     sed -i "s/echo \" done\"/log_success_msg \"\$title\" \"Success\" /g"  /etc/init.d/php-fpm
     sed -i "s/echo \"warning, no pid file found - php-fpm is not running ?\"/log_warning_msg \"\$title\" \"Not Running\"/g" /etc/init.d/php-fpm
