@@ -91,6 +91,12 @@ show_ver() {
     fi
 }
 
+wget_cache() {
+    if [ ! -f "$2" ]; then
+        wget -c "$1" -O "$2"
+    fi
+}
+
 set_host_name() {
     echo_yellow "[+] 修改 hostname..."
     read -r -p "请输入 hostname: " HOST_NAME
@@ -287,7 +293,7 @@ install_git() {
     ins_begin "git"
     yum install -y autoconf zlib-devel curl-devel openssl-devel perl cpio expat-devel gettext-devel openssl zlib gcc perl-ExtUtils-MakeMaker
 
-    wget -c https://github.com/git/git/archive/master.tar.gz -O git-master.tar.gz
+    wget_cache https://github.com/git/git/archive/master.tar.gz git-master.tar.gz
     tar xzf git-master.tar.gz
     cd git-master || exit
 
@@ -329,9 +335,10 @@ install_zsh() {
 
 install_vim() {
     echo_blue "[+] 升级 vim..."
+    yum uninstall -y vim
     yum install -y ncurses-devel
 
-    wget -c https://github.com/vim/vim/archive/master.tar.gz -O vim-master.tar.gz
+    wget_cache https://github.com/vim/vim/archive/master.tar.gz vim-master.tar.gz
     if [ $? -eq 0 ]; then
         yum remove -y vim
         tar zxf vim-master.tar.gz
@@ -374,7 +381,7 @@ install_cmake() {
     yum remove -y cmake
     yum install -y gcc gcc-c++
 
-    wget -c https://github.com/Kitware/CMake/releases/download/v${CMAKEVER}/cmake-${CMAKEVER}.tar.gz
+    wget_cache https://github.com/Kitware/CMake/releases/download/v${CMAKEVER}/cmake-${CMAKEVER}.tar.gz cmake-${CMAKEVER}.tar.gz
     tar zxf cmake-${CMAKEVER}.tar.gz
     cd cmake-${CMAKEVER} || exit
 
@@ -408,7 +415,7 @@ install_python3() {
     ins_begin "Python3"
     yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
 
-    wget -c --no-check-certificate https://www.python.org/ftp/python/${PYTHONVER}/Python-${PYTHONVER}.tgz
+    wget_cache https://www.python.org/ftp/python/${PYTHONVER}/Python-${PYTHONVER}.tgz Python-${PYTHONVER}.tgz
     tar xf Python-${PYTHONVER}.tgz
     cd Python-${PYTHONVER} || exit
 
@@ -631,7 +638,7 @@ install_ikev2() {
 
     mkdir ikev2
     cd ikev2 || exit
-    wget --no-check-certificate https://raw.githubusercontent.com/quericy/one-key-ikev2-vpn/master/one-key-ikev2.sh
+    wget -c https://raw.githubusercontent.com/quericy/one-key-ikev2-vpn/master/one-key-ikev2.sh
     chmod +x one-key-ikev2.sh
 
     while :;do
@@ -709,7 +716,7 @@ install_ikev2() {
 
 install_nodejs() {
     ins_begin "Nodejs"
-    wget -c https://nodejs.org/dist/v${NODEJSVER}/node-v${NODEJSVER}-linux-x64.tar.xz
+    wget_cache https://nodejs.org/dist/v${NODEJSVER}/node-v${NODEJSVER}-linux-x64.tar.xz node-v${NODEJSVER}-linux-x64.tar.xz
     tar -xf node-v${NODEJSVER}-linux-x64.tar.xz
     mv node-v${NODEJSVER}-linux-x64 /usr/local/node
     chown root:root -R /usr/local
@@ -748,12 +755,12 @@ install_mysql() {
     rm -rf "${INSHOME}/database/mysql"
     rm -rf /usr/local/mysql
 
-    wget -c http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz
+    wget_cache http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz boost_1_59_0.tar.gz
     tar zxf boost_1_59_0.tar.gz
     mv boost_1_59_0 /usr/local/boost
     chown root:root -R /usr/local/boost
 
-    wget -c https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQLVER}.tar.gz
+    wget_cache https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQLVER}.tar.gz mysql-${MYSQLVER}.tar.gz
     tar zxf mysql-${MYSQLVER}.tar.gz
     cd mysql-${MYSQLVER} || exit
 
@@ -1020,7 +1027,7 @@ EOF
 install_start-stop-daemon() {
     ins_begin "start-stop-daemon"
     yum install -y ncurses-devel
-    wget -c http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${DAEMONVER}.tar.xz -O start-stop-daemon_${DAEMONVER}.tar.xz
+    wget_cache http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${DAEMONVER}.tar.xz start-stop-daemon_${DAEMONVER}.tar.xz
     mkdir start-stop-daemon_${DAEMONVER}
     tar -xf start-stop-daemon_${DAEMONVER}.tar.xz -C ./start-stop-daemon_${DAEMONVER} --strip-components 1
     cd start-stop-daemon_${DAEMONVER} || exit
@@ -1047,11 +1054,11 @@ install_nginx() {
     git submodule update --init
     cd ..
 
-    wget -c  https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz
+    wget_cache https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz OpenSSL_1_1_1.tar.gz
     tar xzf OpenSSL_1_1_1.tar.gz
     mv openssl-OpenSSL_1_1_1 openssl
 
-    wget -c https://nginx.org/download/nginx-${NGINXVER}.tar.gz
+    wget_cache https://nginx.org/download/nginx-${NGINXVER}.tar.gz nginx-${NGINXVER}.tar.gz
     tar zxf nginx-${NGINXVER}.tar.gz
     cd nginx-${NGINXVER} || exit
     sed -i "s/${NGINXVER}/8.8.8.8/g" src/core/nginx.h
@@ -1285,7 +1292,7 @@ install_php() {
     rpm -e php-mysql php-cli php-gd php-common php --nodeps
     yum -y install libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libmcrypt-devel libmcrypt mhash mcrypt libicu-devel
 
-    wget -c https://libzip.org/download/libzip-1.5.1.tar.gz
+    wget_cache https://libzip.org/download/libzip-1.5.1.tar.gz libzip-1.5.1.tar.gz
     tar zxf libzip-1.5.1.tar.gz
     cd libzip-1.5.1 || exit
     mkdir build
@@ -1302,7 +1309,7 @@ install_php() {
 EOF
     ldconfig
 
-    wget -c http://cn2.php.net/get/php-${PHPVER}.tar.gz/from/this/mirror -O php-${PHPVER}.tar.gz
+    wget_cache http://cn2.php.net/get/php-${PHPVER}.tar.gz/from/this/mirror php-${PHPVER}.tar.gz
     tar zxf php-${PHPVER}.tar.gz
     cd php-${PHPVER} || exit
     ./configure --prefix=/usr/local/php \
@@ -1460,7 +1467,7 @@ EOF
     cd ..
 
     if [ -s /usr/local/redis/bin/redis-server ]; then
-        wget -c https://github.com/phpredis/phpredis/archive/master.zip -O phpredis-master.zip
+        wget_cache https://github.com/phpredis/phpredis/archive/master.zip phpredis-master.zip
         unzip phpredis-master.zip
         cd phpredis-master
         phpize
@@ -1508,7 +1515,7 @@ install_redis() {
     mkdir -p "${INSHOME}/database/redis"
     chown -R redis:redis "${INSHOME}/database/redis"
 
-    wget -c http://download.redis.io/releases/redis-${REDISVER}.tar.gz
+    wget_cache http://download.redis.io/releases/redis-${REDISVER}.tar.gz redis-${REDISVER}.tar.gz
     tar zxf redis-${REDISVER}.tar.gz
     cd redis-${REDISVER} || exit
     make && make PREFIX=/usr/local/redis install
