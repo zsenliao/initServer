@@ -8,7 +8,7 @@ arg2=$2
 DATAHOME="/home"
 
 color_text() {
-    echo -e " \e[0;$2m$1\e[0m"
+    echo -e "\e[0;$2m$1\e[0m"
 }
 
 echo_red() {

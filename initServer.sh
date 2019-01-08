@@ -11,7 +11,7 @@ start_time=$(date +%s)
 CMAKEVER=3.13.2
 PYTHONVER=3.7.2
 NODEJSVER=10.15.0
-DAEMONVER=1.19.2
+DAEMONVER=1.16.18
 NGINXVER=1.15.6
 PHPVER=7.2.13
 REDISVER=5.0.3
@@ -145,6 +145,7 @@ add_user() {
     chmod -R 755 "/home/${USERNAME}"
     chmod 700 "/home/${USERNAME}/.ssh"
     chmod 600 "/home/${USERNAME}/.ssh/${FILENAME}"
+    restorecon -Rv "/home/${USERNAME}/.ssh" 
     echo_green "[√] 添加用户成功!"
     # fi
 }
@@ -164,7 +165,7 @@ ssh_setting() {
             sed -i "s|AuthorizedKeysFile.*|AuthorizedKeysFile .ssh/${FILENAME}.pub|g" /etc/ssh/sshd_config
         fi
         #echo "" >> /etc/ssh/sshd_config
-        #echo "AllowUsers ${USERNAME}" >> /etc/ssh/sshd_config
+        #echo "AllowUsers ${USERNAME}" >> /etc/ssh/sshd_config        
     fi
 
     echo_yellow "是否修改 SSH 默认端口(强烈建议修改，如不修改请直接回车)?"
@@ -180,11 +181,16 @@ ssh_setting() {
         sed -i "s/^ListenAddress [0-9.]*/#&/g; 1,/^#ListenAddress [0-9.]*/{s/^#ListenAddress [0-9.]*/ListenAddress ${LOGINIP}/g}" /etc/ssh/sshd_config
     fi
 
+    echo_yellow "是否允许 root 用户登录?"
+    read -r -p "是(Y)/否(N): " ALLOWROOT
+    if [[ "${ALLOWROOT}" != "y" && "${ALLOWROOT}" != "Y" ]]; then
+        # 禁止 ROOT 用户登录
+        sed -i "s/^PermitRootLogin [a-z]*/#&/g; 1,/^#PermitRootLogin [a-z]*/{s/^#PermitRootLogin [a-z]*/PermitRootLogin no/g}" /etc/ssh/sshd_config
+    fi
+
     sed -i "s/^Protocol [0-9]*/#&/g; 1,/^#Protocol [0-9]*/{s/^#Protocol [0-9]*/Protocol 2/g}" /etc/ssh/sshd_config
     # 是否允许公钥认证
     sed -i "s/^PubkeyAuthentication [a-z]*/#&/g; 1,/^#PubkeyAuthentication [a-z]*/{s/^#PubkeyAuthentication [a-z]*/PubkeyAuthentication yes/g}" /etc/ssh/sshd_config
-    # 禁止 ROOT 用户登录
-    sed -i "s/^PermitRootLogin [a-z]*/#&/g; 1,/^#PermitRootLogin [a-z]*/{s/^#PermitRootLogin [a-z]*/PermitRootLogin no/g}" /etc/ssh/sshd_config
     # 是否允许密码为空的用户远程登录。默认为"no"
     sed -i "s/^PermitEmptyPasswords [a-z]*/#&/g; 1,/^#PermitEmptyPasswords [a-z]*/{s/^#PermitEmptyPasswords [a-z]*/PermitEmptyPasswords no/g}" /etc/ssh/sshd_config
     # 是否使用PAM模块认证
@@ -203,7 +209,7 @@ ssh_setting() {
     sed -i "s/^PrintLastLog [a-z]*/#&/g; 1,/^#PrintLastLog [a-z]*/{s/^#PrintLastLog [a-z]*/PrintLastLog yes/g}" /etc/ssh/sshd_config
     # 登入后是否显示出一些信息呢，例如上次登入的时间、地点等等
     sed -i "s/^PrintMotd [a-z]*/#&/g; 1,/#PrintMotd[a-z]*/{s/^#PrintMotd [a-z]*/PrintMotd no/g}" /etc/ssh/sshd_config
-    #使用 rhosts 档案在 /etc/hosts.equiv配合 RSA 演算方式来进行认证, 推荐no。RhostsRSAAuthentication 是version 1
+    # 使用 rhosts 档案在 /etc/hosts.equiv配合 RSA 演算方式来进行认证, 推荐no。RhostsRSAAuthentication 是version 1
     sed -i "s/^HostbasedAuthentication [a-z]*/#&/g; 1,/#HostbasedAuthentication[a-z]*/{s/^#HostbasedAuthentication [a-z]*/HostbasedAuthentication no/g}" /etc/ssh/sshd_config
     # 是否在 RhostsRSAAuthentication 或 HostbasedAuthentication 过程中忽略用户的 ~/.ssh/known_hosts 文件
     sed -i "s/^IgnoreUserKnownHosts [a-z]*/#&/g; 1,/#IgnoreUserKnownHosts[a-z]*/{s/^#IgnoreUserKnownHosts [a-z]*/IgnoreUserKnownHosts yes/g}" /etc/ssh/sshd_config
@@ -248,8 +254,8 @@ ssh_setting() {
         echo "ssh -p ${SSHPORT} $(whoami)@${HOSTIP}"
     fi
 
-    echo_blue "[!] 请链接一个新的 ssh 到服务器，看是否能连接成功"
-    echo_yellow "是否连接成功?"
+    echo_blue "[!] 请连接一个新的 ssh 到服务器，看是否能连接成功"
+    echo_yellow "是否连接成功(请注意: 建议在客户端 .ssh/config 文件中添加 Host 将服务器与证书对应)?"
     read -r -p "成功(Y)/失败(N): " SSHSUSS
     if [[ "${SSHSUSS}" = "n" || "${SSHSUSS}" = "N" ]]; then
         if [ -n "${USERNAME}" ]; then
@@ -389,13 +395,12 @@ install_acme() {
         yum install -y socat
 
         curl https://get.acme.sh | sh
-        echo '. "/root/.acme.sh/acme.sh.env"' >> ~/.zshrc
         source ~/.zshrc
         source ~/.bashrc
 
-        acme.sh --upgrade --auto-upgrade
+        /root/.acme.sh/acme.sh --upgrade --auto-upgrade
 
-        ins_end "acme.sh"
+        ins_end "/root/.acme.sh/acme.sh"
     fi
 }
 
@@ -455,7 +460,7 @@ install_uwsgi() {
 # Description: Startup script for uwsgi webserver on Debian. Place in /etc/init.d and
 # run 'update-rc.d -f uwsgi defaults', or use the appropriate command on your
 # distro. For CentOS/Redhat run: 'chkconfig --add uwsgi'
- 
+
 ### BEGIN INIT INFO
 # Provides:          uwsgi
 # Required-Start:    \$all
@@ -477,72 +482,85 @@ CONFIGDIR=${INSHOME}/wwwconf/uwsgi
 PIDDIR=/tmp
 
 log_success_msg(){
-    printf "%-60s \\033[32m[%s]\\033[0m\\n" "\$@"
+    printf "%-58s \\033[32m[ %s ]\\033[0m\\n" "\$@"
 }
 log_failure_msg(){
-    printf "%-60s \\033[31m[%s]\\033[0m\\n" "\$@"
+    printf "%-58s \\033[31m[ %s ]\\033[0m\\n" "\$@"
 }
 log_warning_msg(){
-    printf "%-60s \\033[33m[%s]\\033[0m\\n" "\$@"
+    printf "%-58s \\033[33m[ %s ]\\033[0m\\n" "\$@"
 }
 
 iniList=\$(ls \${CONFIGDIR}/*.ini 2>/dev/null)
 
 start() {
-    echo "Starting \$DESC: "
-    for i in \${iniList[@]}
-    do
-        SiteName=\${i:${#TMPCONFDIR}:0-4}
-        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
-        if [ ! -z "\$pid" ]; then
-            log_warning_msg "        \${SiteName}: " "Already Running"
-        else
-            \$DAEMON --ini \${i} 2>/dev/null
-            if [ \$? -eq 0 ]; then
-                log_success_msg "        \${SiteName}: " "SUCCESS"
+    if [ \${#iniList} -eq 0 ]; then
+        log_warning_msg "Starting \$DESC: " "No Application"
+    else
+        echo "Starting \$DESC: "
+        # for i in \${CONFIGDIR}/*.ini
+        for i in \${iniList[@]}
+        do
+            SiteName=\${i:${#TMPCONFDIR}:0-4}
+            pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
+            if [ ! -z "\$pid" ]; then
+                log_warning_msg "        \${SiteName}: " "Already Running"
             else
-                log_failure_msg "        \${SiteName}: " "Failed"
+                \$DAEMON --ini \${i} 2>/dev/null
+                if [ \$? -eq 0 ]; then
+                    log_success_msg "        \${SiteName}: " "SUCCESS"
+                else
+                    log_failure_msg "        \${SiteName}: " "Failed"
+                fi
             fi
-        fi
-    done
+        done
+    fi
 }
 
 stop() {
-    echo "Stopping \$DESC: "
-    for i in \${iniList[@]}
-    do
-        SiteName=\${i:${#TMPCONFDIR}:0-4}
-        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
-        if [ ! -z "\$pid" ]; then
-            \$DAEMON --stop \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
-            if [ \$? -eq 0 ]; then
-                log_success_msg "        \${SiteName}: " "SUCCESS"
+    if [ \${#iniList} -eq 0 ]; then
+        log_warning_msg "Stopping \$DESC: " "No Application"
+    else
+        echo "Stopping \$DESC: "
+        for i in \${iniList[@]}
+        do
+            SiteName=\${i:${#TMPCONFDIR}:0-4}
+            pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
+            if [ ! -z "\$pid" ]; then
+                \$DAEMON --stop \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
+                if [ \$? -eq 0 ]; then
+                    log_success_msg "        \${SiteName}: " "SUCCESS"
+                else
+                    log_failure_msg "        \${SiteName}: " "Failed"
+                fi
             else
-                log_failure_msg "        \${SiteName}: " "Failed"
+                log_warning_msg "        \${SiteName}: " "Not Running"
             fi
-        else
-            log_warning_msg "        \${SiteName}: " "Not Running"
-        fi
-    done
+        done
+    fi
 }
 
 reload() {
-    echo "Reloading \$DESC: "
-    for i in \${iniList[@]}
-    do
-        SiteName=\${i:${#TMPCONFDIR}:0-4}
-        pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
-        if [ ! -z "\$pid" ]; then
-            \$DAEMON --reload \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
-            if [ \$? -eq 0 ]; then
-                log_success_msg "        \${SiteName}: " "SUCCESS"
+    if [ \${#iniList} -eq 0 ]; then
+        log_warning_msg "Stopping \$DESC: " "No Application"
+    else
+        echo "Reloading \$DESC: "
+        for i in \${iniList[@]}
+        do
+            SiteName=\${i:${#TMPCONFDIR}:0-4}
+            pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
+            if [ ! -z "\$pid" ]; then
+                \$DAEMON --reload \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
+                if [ \$? -eq 0 ]; then
+                    log_success_msg "        \${SiteName}: " "SUCCESS"
+                else
+                    log_failure_msg "        \${SiteName}: " "Failed"
+                fi
             else
-                log_failure_msg "        \${SiteName}: " "Failed"
+                log_warning_msg "        \${SiteName}: " "Not Running"
             fi
-        else
-            log_warning_msg "        \${SiteName}: " "Not Running"
-        fi
-    done
+        done
+    fi
 }
 
 status() {
@@ -1008,8 +1026,7 @@ install_start-stop-daemon() {
     cd start-stop-daemon_${DAEMONVER} || exit
 
     ./configure
-    make
-    cp utils/start-stop-daemon /usr/local/bin/
+    make && make install
 
     ins_end "start-stop-daemon"
     cd ..
@@ -1165,13 +1182,13 @@ CONFIGFILE=/usr/local/nginx/conf/\$NAME.conf
 test -x \$DAEMON || exit 1
 
 log_success_msg(){
-    printf "%-60s \\033[32m[%s]\\033[0m\\n" "\$@"
+    printf "%-58s \\033[32m[ %s ]\\033[0m\\n" "\$@"
 }
 log_failure_msg(){
-    printf "%-60s \\033[31m[%s]\\033[0m\\n" "\$@"
+    printf "%-58s \\033[31m[ %s ]\\033[0m\\n" "\$@"
 }
 log_warning_msg(){
-    printf "%-60s \\033[33m[%s]\\033[0m\\n" "\$@"
+    printf "%-58s \\033[33m[ %s ]\\033[0m\\n" "\$@"
 }
 
 case "\$1" in
@@ -1214,7 +1231,6 @@ case "\$1" in
         ;;
 
     status)
-        echo -n "\$DESC status: "
         start-stop-daemon --status --pidfile \$PIDFILE
         case "\$?" in
             0)
@@ -1424,8 +1440,10 @@ EOF
     sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = $(($MemTotal/2/20))#" /usr/local/php/etc/php-fpm.conf
 
     cp sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
-    sed -i '20 s/^/log_success_msg(){\n\tprintf "%-60s \\033[32m[%s]\\033[0m\\n" "\$@"\n}\nlog_failure_msg(){\n\tprintf "%-60s \\033[31m[%s]\\033[0m\\n" "\$@"\n}\nlog_warning_msg(){\n\tprintf "%-60s \\033[33m[%s]\\033[0m\\n" "\$@"\n}\n/' /etc/init.d/php-fpm
+    sed -i '20 s/^/log_success_msg(){\n\tprintf "%-58s \\033[32m[ %s ]\\033[0m\\n" "\$@"\n}\nlog_failure_msg(){\n\tprintf "%-58s \\033[31m[ %s ]\\033[0m\\n" "\$@"\n}\nlog_warning_msg(){\n\tprintf "%-58s \\033[33m[ %s ]\\033[0m\\n" "\$@"\n}\n/' /etc/init.d/php-fpm
     sed -i 's/echo -n "/title="/g'  /etc/init.d/php-fpm
+    sed -i 's/php-fpm "/php-fpm: "/g'  /etc/init.d/php-fpm
+    sed -i 's/exit 1/exit 0/g'  /etc/init.d/php-fpm
     sed -i "s/echo \" failed\"/log_failure_msg \"\$title\" \"Failed\" /g"  /etc/init.d/php-fpm
     sed -i "s/echo \" done\"/log_success_msg \"\$title\" \"Success\" /g"  /etc/init.d/php-fpm
     sed -i "s/echo \"warning, no pid file found - php-fpm is not running ?\"/log_warning_msg \"\$title\" \"Not Running\"/g" /etc/init.d/php-fpm
@@ -1534,13 +1552,13 @@ CONF=/usr/local/redis/etc/redis.conf
 DESC=Redis-Server
 
 log_success_msg(){
-    printf "%-60s \\033[32m[%s]\\033[0m\\n" "\$@"
+    printf "%-58s \\033[32m[ %s ]\\033[0m\\n" "\$@"
 }
 log_failure_msg(){
-    printf "%-60s \\033[31m[%s]\\033[0m\\n" "\$@"
+    printf "%-58s \\033[31m[ %s ]\\033[0m\\n" "\$@"
 }
 log_warning_msg(){
-    printf "%-60s \\033[33m[%s]\\033[0m\\n" "\$@"
+    printf "%-58s \\033[33m[ %s ]\\033[0m\\n" "\$@"
 }
 
 redis_pid() {
@@ -1550,7 +1568,6 @@ redis_pid() {
 start() {
     pid=\$(redis_pid)
     # if [ -f "\$PIDFILE" ]; then
-    echo -n "Starting \$DESC: "
     if [ -n "\$pid" ]; then
         log_warning_msg "Starting \$DESC: (pid: \$pid)" "Already Running"
     else
@@ -1565,12 +1582,11 @@ start() {
 
 status() {
     pid=\$(redis_pid)
-    echo -n "\$DESC status: "
     # if [ -f "\$PIDFILE" ]; then
     if [ -n "\$pid" ]; then
         log_success_msg "\$DESC status: (pid: \$pid)" "Running"
     else
-        log_warning_msg "\$DESC status: is not running" "Stopped"
+        log_warning_msg "\$DESC status: " "Stopped"
     fi
 }
 
@@ -1668,18 +1684,17 @@ clean_install() {
     echo_yellow "是否清理安装文件?"
     read -r -p "全部(A)是(Y)/否(N): " CLRANINS
     if [[ ${CLRANINS} = "y" || ${CLRANINS} = "Y" ]]; then
-        cd "${CUR_DIR}/src" || exit
-        for deldir in $(ls .)
+        echo_blue "正在清理安装编译文件..."
+        for deldir in "${CUR_DIR}"/src/*
         do
             if [ -d "${deldir}" ]; then
                 rm -rf "${deldir}"
             fi
         done
-        cd "${CUR_DIR}" || exit
-        echo_blue "安装文件清理完成。"
+        echo_blue "安装编译文件清理完成。"
     elif [[ ${CLRANINS} = "a" || ${CLRANINS} = "A" ]]; then
-        cd "${CUR_DIR}" || exit
-        rm -rf src
+        echo_blue "正在清理全部文件..."
+        rm -rf "${CUR_DIR}"/src
         echo_blue "安装文件清理完成。"
     fi
 
