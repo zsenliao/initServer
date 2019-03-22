@@ -19,6 +19,7 @@ PHPVER=7.2.16
 MCRYPTVER=1.0.2
 REDISVER=5.0.3
 MYSQLVER=5.7.21
+TOMCATVER=9.0.8
 
 get_server_ip() {
     local CURLTXT
@@ -103,16 +104,13 @@ set_time_zone() {
 }
 
 set_host_name() {
-    echo_yellow "[+] 修改 hostname..."
-    read -r -p "请输入 hostname: " HOST_NAME
-    sed -i "s/^127.0.0.1 .*/127.0.0.1 ${HOST_NAME}/g" /etc/hosts
-    echo "${HOSTIP} ${HOST_NAME}" >> /etc/hosts
+    echo_yellow "[+] 修改 HostName..."
+    read -r -p "请输入 HostName: " HOST_NAME
     echo "hostname=\"${HOST_NAME}\"" >> /etc/sysconfig/network
     echo "" > /etc/hostname
     echo "${HOST_NAME}" > /etc/hostname
     /etc/init.d/network restart
-    echo_blue "[!] 请检测修改是否生效:"
-    cat /etc/hosts
+    echo_green "[√] 修改 HostName 成功!"
 }
 
 add_user() {
@@ -1477,7 +1475,7 @@ EOF
 
     cd ..
 
-    wget_cache http://pecl.php.net/get/mcrypt-${MCRYPTVER}.tgz
+    wget_cache http://pecl.php.net/get/mcrypt-${MCRYPTVER}.tgz mcrypt-${MCRYPTVER}.tgz
     tar xf mcrypt-${MCRYPTVER}.tgz
     cd mcrypt-${MCRYPTVER}
     phpize
@@ -1674,6 +1672,192 @@ EOF
 
     ins_end "redis-server"
     cd ..
+}
+
+install_tomcat() {
+    ins_begin "Java"
+    yum install -y java-11-openjdk.x86_64 java-11-openjdk-devel.x86_64
+    export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+    export JRE_HOME=/usr/lib/jvm/java-11-openjdk/jre
+    ins_end "java"
+
+    ins_begin "Tomcat"
+    wget_cache https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCATVER}/bin/apache-tomcat-${TOMCATVER}.tar.gz apache-tomcat-${TOMCATVER}.tar.gz
+    tar zxf apache-tomcat-${TOMCATVER}.tar.gz
+    cd apache-tomcat-${TOMCATVER}/bin
+    tar zxf commons-daemon-native.tar.gz
+    cd commons-daemon-1.1.0-native-src/unix
+    ./configure
+    make
+    mv jsvc ../../
+    cd ../../
+    rm -rf commons-daemon-1.1.0-native-src commons-daemon-native.tar.gz tomcat-native.tar.gz
+    cd ../../
+    mv apache-tomcat-${TOMCATVER} /usr/local/tomcat
+
+    groupadd tomcat
+    useradd -r -g tomcat -s /bin/false tomcat
+    chmod -R 777 /usr/local/tomcat/logs
+
+    sed -i 's#<Connector port="8080" protocol="HTTP/1.1"#<Connector port="8080" protocol="HTTP/1.1" maxThreads="1000"#g' /usr/local/tomcat/conf/server.xml
+    sed -i 's#connectionTimeout="20000"#connectionTimeout="30000" minSpareThreads="100" maxSpareThreads="200" acceptCount="900"#g' /usr/local/tomcat/conf/server.xml
+    # sed -i 's#appBase="webapps"#appBase="/home/wwwroot"#g' /usr/local/tomcat/conf/server.xml
+    sed -i 's#directory="logs"#directory="/home/wwwlogs"#g' /usr/local/tomcat/conf/server.xml
+    sed -i 's#prefix="localhost_access_log" suffix=".txt"#prefix="tomcat_access" suffix=".log"#g' /usr/local/tomcat/conf/server.xml
+
+    cat > /etc/init.d/tomcat<<EOF
+#!/bin/bash
+#
+# tomcat     This shell script takes care of starting and stopping Tomcat
+#
+# chkconfig: - 80 20
+#
+### BEGIN INIT INFO
+# Provides: tomcat
+# Required-Start: \$network \$syslog
+# Required-Stop: \$network \$syslog
+# Default-Start:
+# Default-Stop:
+# Short-Description: start and stop tomcat
+### END INIT INFO
+
+export JAVA_OPTS="-Dfile.encoding=UTF-8 \
+  -Dnet.sf.ehcache.skipUpdateCheck=true \
+  -XX:+UseConcMarkSweepGC \
+  -XX:+CMSClassUnloadingEnabled \
+  -XX:+UseParNewGC \
+  -XX:MaxPermSize=128m \
+  -Xms512m -Xmx512m"
+
+TOMCAT_USER=tomcat
+TOMCAT_HOME=/usr/local/tomcat
+CATALINA_HOME=/usr/local/tomcat
+DESC=Tomcat
+
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+export JRE_HOME=/usr/lib/jvm/java-11-openjdk/jre
+PATH=$PATH:$JAVA_HOME/bin
+CLASSPATH=.:$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar
+
+log_success_msg(){
+    printf "%-58s \\033[32m[ %s ]\\033[0m\\n" "\$@"
+}
+log_failure_msg(){
+    printf "%-58s \\033[31m[ %s ]\\033[0m\\n" "\$@"
+}
+log_warning_msg(){
+    printf "%-58s \\033[33m[ %s ]\\033[0m\\n" "\$@"
+}
+
+./jsvc -user tomcat -pidfile /var/run/jsvc.pid \
+       -Djvm=tomcat -Xmx128M  -Xms128M \
+       -Dfile.encoding=UTF-8 \
+       -Djava.util.logging.config.file=/usr/local/tomcat/conf/logging.properties \
+       -Djava.util.logging.manager=org.apache.juli.ClassLoaderLogManager \
+       -Djava.endorsed.dirs=/usr/local/tomcat/endorsed \
+       -classpath /usr/local/tomcat/bin/bootstrap.jar:/usr/local/tomcat/bin/tomcat-juli.jar \
+       -Dcatalina.base=/usr/local/tomcat \
+       -Dcatalina.home=/usr/local/tomcat \
+       -Djava.io.tmpdir=/usr/local/tomcat/temp \
+       org.apache.catalina.startup.Bootstrap start
+
+tomcat_pid() {
+    echo \`ps aux | grep org.apache.catalina.startup.Bootstrap | grep -v grep | awk '{ print \$2 }'\`
+}
+
+run() {
+    pid=\$(tomcat_pid)
+    if [ -n "\$pid" ]; then
+        log_warning_msg "Running \$DESC: (pid: \$pid)" "Already Running"
+    else
+        \$TOMCAT_HOME/bin/daemon.sh run
+        if [ \$? -eq 0 ]; then
+            log_success_msg "Running \$DESC: " "SUCCESS"
+        else
+            log_failure_msg "Running \$DESC: " "Failed"
+        fi
+    fi
+}
+
+start() {
+    pid=\$(tomcat_pid)
+    if [ -n "\$pid" ]; then
+        log_warning_msg "Starting \$DESC: (pid: \$pid)" "Already Running"
+    else
+        \$TOMCAT_HOME/bin/daemon.sh start
+        if [ \$? -eq 0 ]; then
+            log_success_msg "Starting \$DESC: " "SUCCESS"
+        else
+            log_failure_msg "Starting \$DESC: " "Failed"
+        fi
+    fi
+}
+
+status() {
+    pid=\$(tomcat_pid)
+    if [ -n "\$pid" ]; then
+        log_success_msg "\$DESC status: (pid: \$pid)" "Running"
+    else
+        log_warning_msg "\$DESC status: " "Stopped"
+    fi
+}
+
+stop() {
+    pid=\$(tomcat_pid)
+    if [ -n "\$pid" ]; then
+        \$TOMCAT_HOME/bin/daemon.sh stop
+        if [ \$? -eq 0 ]; then
+            log_success_msg "Stopping \$DESC: " "SUCCESS"
+        else
+            log_failure_msg "Stopping \$DESC: " "Failed"
+        fi
+    else
+        log_warning_msg "Stopping \$DESC: " "Not Running"
+    fi
+}
+
+kill() {
+    kill -9 \$(tomcat_pid)
+    pid=\$(tomcat_pid)
+    if [ -n "\$pid" ]; then
+        log_failure_msg "Killing \$DESC: " "Failed"
+    else
+        log_success_msg "Killing \$DESC: " "SUCCESS"
+    fi
+}
+
+case \$1 in
+    run)
+        run
+        ;;
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        stop
+        start
+        ;;
+    status)
+        status
+        ;;
+    kill)
+        kill
+        ;;
+    *)
+        echo "Usage: \$0 {run|start|stop|kill|status|restart}"
+    ;;
+esac
+exit 0
+EOF
+    chgrp -R tomcat /usr/local/tomcat/.
+    chmod +x /etc/init.d/tomcat
+    chkconfig --add tomcat
+    chkconfig tomcat on
+
+    echo_green "[√] Tomcat 安装成功！"
 }
 
 register_management-tool() {
@@ -1899,9 +2083,15 @@ if [[ ${INSNODEJS} = "y" || ${INSNODEJS} = "Y" ]]; then
 fi
 
 show_ver "nginx -v" "Nginx"
-read -r -p "是(Y)/否(N): " NGINX
-if [[ ${NGINX} = "y" || ${NGINX} = "Y" ]]; then
+read -r -p "是(Y)/否(N): " INSNGINX
+if [[ ${INSNGINX} = "y" || ${INSNGINX} = "Y" ]]; then
     install_nginx
+fi
+
+show_ver "java -version" "Tomcat"
+read -r -p "是(Y)/否(N): " INSTOMCAT
+if [[ ${INSTOMCAT} = "y" || ${INSTOMCAT} = "Y" ]]; then
+    install_tomcat
 fi
 
 echo_yellow "是否安装 ikev2?"
