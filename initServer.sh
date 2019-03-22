@@ -3,8 +3,7 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
 # todo 增加邮件发送设置
-# todo 增加自动安装
-# AUTOINSTALL=$1
+AUTOINSTALL=$1
 STARTTIME=$(date +%s)
 CUR_DIR=$(cd $(dirname $BASH_SOURCE); pwd)
 MemTotal=$(free -m | grep Mem | awk '{print  $2}')
@@ -105,7 +104,11 @@ set_time_zone() {
 
 set_host_name() {
     echo_yellow "[+] 修改 HostName..."
-    read -r -p "请输入 HostName: " HOST_NAME
+    if [[ "$AUTOINSTALL" = "auto" ]]; then
+        HOST_NAME="myServer"
+    else
+        read -r -p "请输入 HostName: " HOST_NAME
+    fi
     echo "hostname=\"${HOST_NAME}\"" >> /etc/sysconfig/network
     echo "" > /etc/hostname
     echo "${HOST_NAME}" > /etc/hostname
@@ -325,7 +328,11 @@ install_zsh() {
     chsh -s /bin/zsh
 
     echo_yellow "是否安装 oh my zsh?"
-    read -r -p "是(Y)/否(N): " INSOHMYZSH
+    if [[ "$AUTOINSTALL" = "auto" ]]; then
+        INSOHMYZSH="Y"
+    else
+        read -r -p "是(Y)/否(N): " INSOHMYZSH
+    fi
     if [[ ${INSOHMYZSH} = "y" || ${INSOHMYZSH} = "Y" ]]; then
         echo_blue "[+] 安装 oh my zsh..."
         wget https://github.com/robbyrussell/oh-my-zsh/raw/master/tools/install.sh -O - | sh
@@ -447,7 +454,11 @@ install_python3() {
     pip3 install --upgrade pip
 
     echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
-    read -r -p "是(Y)/否(N): " DEFPYH
+    if [[ "$AUTOINSTALL" = "auto" ]]; then
+        DEFPYH="N"
+    else
+        read -r -p "是(Y)/否(N): " DEFPYH
+    fi
     if [[ ${DEFPYH} = "y" || ${DEFPYH} = "Y" ]]; then
         # rm -r /usr/bin/python
         ln -sf /usr/local/bin/python3 /usr/local/bin/python
@@ -723,7 +734,7 @@ install_ikev2() {
 
     bash one-key-ikev2.sh
     cd ..
-}  # todo
+}  # TODO
 
 install_nodejs() {
     ins_begin "Nodejs"
@@ -751,7 +762,11 @@ install_mysql() {
     ins_begin "MySQL"
 
     echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
-    read -r -p "密码: " DBROOTPWD
+    if [ "$AUTOINSTALL" = "auto" ]; then
+        DBROOTPWD=""
+    else
+        read -r -p "密码: " DBROOTPWD
+    fi
     if [ "${DBROOTPWD}" = "" ]; then
         echo_red "没有输入密码，将采用默认密码。"
         DBROOTPWD="zsen@Club#$RANDOM"
@@ -1496,7 +1511,11 @@ EOF
     fi
 
     echo_yellow "是否安装 MySQL 扩展（不建议安装，请使用最新版如 MySQLi 扩展）? "
-    read -r -p "是(Y)/否(N): " PHPMYSQL
+    if [ "$AUTOINSTALL" = "auto" ]; then
+        PHPMYSQL="N"
+    else
+        read -r -p "是(Y)/否(N): " PHPMYSQL
+    fi
     if [[ ${PHPMYSQL} = "y" || ${PHPMYSQL} = "Y" ]]; then
         wget -c --no-cookie "http://git.php.net/?p=pecl/database/mysql.git;a=snapshot;h=647c933b6cc8f3e6ce8a466824c79143a98ee151;sf=tgz" -O php-mysql.tar.gz
         mkdir ./php-mysql
@@ -1519,7 +1538,11 @@ install_redis() {
     ins_begin "Redis"
 
     echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
-    read -r -p "密码: " REDISPWD
+    if [ "$AUTOINSTALL" = "auto" ]; then
+        REDISPWD=""
+    else
+        read -r -p "密码: " REDISPWD
+    fi
     if [ "${REDISPWD}" = "" ]; then
         echo_red "没有输入密码，将采用默认密码。"
         REDISPWD=$(echo "zsenClub#$RANDOM" | md5sum | cut -d " " -f 1)
@@ -1690,9 +1713,11 @@ install_tomcat() {
     ./configure
     make
     mv jsvc ../../
-    cd ../../
+    cd ..
+    cd ..
     rm -rf commons-daemon-1.1.0-native-src commons-daemon-native.tar.gz tomcat-native.tar.gz
-    cd ../../
+    cd ..
+    cd ..
     mv apache-tomcat-${TOMCATVER} /usr/local/tomcat
 
     groupadd tomcat
@@ -1863,7 +1888,11 @@ EOF
 register_management-tool() {
     while :;do
         echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
-        read -r -p "请输入管理工具名称: " MYNAME
+        if [ "$AUTOINSTALL" = "auto" ]; then
+            MYNAME="pnmp"
+        else
+            read -r -p "请输入管理工具名称: " MYNAME
+        fi
         if [ -z "${MYNAME}" ]; then
             MYNAME="pnmp"
             break
@@ -1883,7 +1912,11 @@ register_management-tool() {
 
     if [[ ${NGINX} = "y" || ${NGINX} = "Y" ]]; then
         echo_yellow "是否要添加默认站点? "
-        read -r -p "是(Y)/否(N): " ADDHOST
+        if [ "$AUTOINSTALL" = "auto" ]; then
+            ADDHOST="N"
+        else
+            read -r -p "是(Y)/否(N): " ADDHOST
+        fi
         if [[ ${ADDHOST} = "y" || ${ADDHOST} = "Y" ]]; then
             ${MYNAME} vhost add
         fi
@@ -1892,7 +1925,11 @@ register_management-tool() {
 
 clean_install() {
     echo_yellow "是否清理安装文件?"
-    read -r -p "全部(A)是(Y)/否(N): " CLRANINS
+    if [ "$AUTOINSTALL" = "auto" ]; then
+        CLRANINS="Y"
+    else
+        read -r -p "全部(A)是(Y)/否(N): " CLRANINS
+    fi
     if [[ ${CLRANINS} = "y" || ${CLRANINS} = "Y" ]]; then
         echo_blue "正在清理安装编译文件..."
         for deldir in "${CUR_DIR}"/src/*
@@ -1949,7 +1986,11 @@ if [ $? -eq 0 ]; then
     SENCOND=$(df -h | grep vdb 2>&1)
     if [ -z "$SENCOND" ]; then
         echo_red "监测到服务器有第二磁盘且未挂载。建议可先退出程序，参照云服务商说明挂载磁盘后再运行本工具"
-        read -r -p "是否退出(q),不退出请直接回车? " EXITTOOLS
+        if [ "$AUTOINSTALL" = "auto" ]; then
+            EXITTOOLS="N"
+        else
+            read -r -p "是否退出(q),不退出请直接回车? " EXITTOOLS
+        fi
         if [[ ${EXITTOOLS} = "q" || ${EXITTOOLS} = "Q" ]]; then
             exit 0
         fi
@@ -1973,13 +2014,21 @@ df -h
 echo ""
 echo_blue "========= 开始系统安装 ========="
 echo_yellow "是否调整时区?"
-read -r -p "是(Y)/否(N): " SETTIMEZONE
+if [ "$AUTOINSTALL" = "auto" ]; then
+    SETTIMEZONE="N"
+else
+    read -r -p "是(Y)/否(N): " SETTIMEZONE
+fi
 if [[ ${SETTIMEZONE} = "y" || ${SETTIMEZONE} = "Y" ]]; then
     set_time_zone
 fi
 
 echo_yellow "请输入安装目录（比如 /home 或 /data），默认 /data"
-read -r -p "请输入: " INSHOME
+if [ "$AUTOINSTALL" = "auto" ]; then
+    INSHOME="/data"
+else
+    read -r -p "请输入: " INSHOME
+fi
 if [ -z "${INSHOME}" ]; then
     INSHOME=/data
 fi
@@ -1997,27 +2046,43 @@ yum update
 yum upgrade -y
 yum install -y wget gcc make curl unzip
 
-echo_yellow "是否修改 hostname?"
-read -r -p "是(Y)/否(N): " SETHOST
+echo_yellow "是否修改 HostName?"
+if [ "$AUTOINSTALL" = "auto" ]; then
+    SETHOST="Y"
+else
+    read -r -p "是(Y)/否(N): " SETHOST
+fi
 if [[ ${SETHOST} = "y" || ${SETHOST} = "Y" ]]; then
     set_host_name
 fi
 
 echo_yellow "是否添加用户?"
-read -r -p "是(Y)/否(N): " ADDUSER
+if [ "$AUTOINSTALL" = "auto" ]; then
+    ADDUSER="N"
+else
+    read -r -p "是(Y)/否(N): " ADDUSER
+fi
 if [[ ${ADDUSER} = "y" || ${ADDUSER} = "Y" ]]; then
     add_user
 fi
 
 echo_yellow "是否修改 SSH 配置?"
-read -r -p "是(Y)/否(N): " SETSSH
+if [ "$AUTOINSTALL" = "auto" ]; then
+    SETSSH="N"
+else
+    read -r -p "是(Y)/否(N): " SETSSH
+fi
 if [[ ${SETSSH} = "y" || ${SETSSH} = "Y" ]]; then
     ssh_setting
 fi
 
 show_ver "cmake --version" "CMake"
 if [[ $VER != "" ]]; then
-    read -r -p "是(Y)/否(N): " INSCMAKE
+    if [ "$AUTOINSTALL" = "auto" ]; then
+        INSCMAKE="Y"
+    else
+        read -r -p "是(Y)/否(N): " INSCMAKE
+    fi
     if [[ ${INSCMAKE} = "y" || ${INSCMAKE} = "Y" ]]; then
         install_cmake
     fi
@@ -2027,7 +2092,11 @@ fi
 
 show_ver "git --version" "Git"
 if [[ $VER != "" ]]; then
-    read -r -p "是(Y)/否(N): " INSGIT
+    if [ "$AUTOINSTALL" = "auto" ]; then
+        INSGIT="Y"
+    else
+        read -r -p "是(Y)/否(N): " INSGIT
+    fi
     if [[ ${INSGIT} = "y" || ${INSGIT} = "Y" ]]; then
         install_git
     fi
@@ -2037,7 +2106,11 @@ fi
 
 show_ver "zsh --version" "zsh"
 if [[ $VER != "" ]]; then
-    read -r -p "是(Y)/否(N): " INSZSH
+    if [ "$AUTOINSTALL" = "auto" ]; then
+        INSZSH="Y"
+    else
+        read -r -p "是(Y)/否(N): " INSZSH
+    fi
     if [[ ${INSZSH} = "y" || ${INSZSH} = "Y" ]]; then
         install_zsh
     fi
@@ -2046,63 +2119,103 @@ else
 fi
 
 show_ver "vim --version | head -n 1" "vim"
-read -r -p "是(Y)/否(N): " INSVIM
+if [ "$AUTOINSTALL" = "auto" ]; then
+    INSVIM="Y"
+else
+    read -r -p "是(Y)/否(N): " INSVIM
+fi
 if [[ ${INSVIM} = "y" || ${INSVIM} = "Y" ]]; then
     install_vim
 fi
 
 show_ver "python3 --version" "Python3"
-read -r -p "是(Y)/否(N): " INSPYTHON3
+if [ "$AUTOINSTALL" = "auto" ]; then
+    INSPYTHON3="Y"
+else
+    read -r -p "是(Y)/否(N): " INSPYTHON3
+fi
 if [[ ${INSPYTHON3} = "y" || ${INSPYTHON3} = "Y" ]]; then
     install_python3
     install_uwsgi
 fi
 
 show_ver "redis-server --version" "Redis"
-read -r -p "是(Y)/否(N): " INSREDIS
+if [ "$AUTOINSTALL" = "auto" ]; then
+    INSREDIS="Y"
+else
+    read -r -p "是(Y)/否(N): " INSREDIS
+fi
 if [[ ${INSREDIS} = "y" || ${INSREDIS} = "Y" ]]; then
     install_redis
 fi
 
 show_ver "php --version" "PHP"
-read -r -p "是(Y)/否(N): " INSPHP
+if [ "$AUTOINSTALL" = "auto" ]; then
+    INSPHP="Y"
+else
+    read -r -p "是(Y)/否(N): " INSPHP
+fi
 if [[ ${INSPHP} = "y" || ${INSPHP} = "Y" ]]; then
     install_php
 fi
 
 show_ver "mysql --version" "MySQL"
-read -r -p "是(Y)/否(N): " INSMYSQL
+if [ "$AUTOINSTALL" = "auto" ]; then
+    INSMYSQL="Y"
+else
+    read -r -p "是(Y)/否(N): " INSMYSQL
+fi
 if [[ ${INSMYSQL} = "y" || ${INSMYSQL} = "Y" ]]; then
     install_mysql
 fi
 
 show_ver "node --version" "Nodejs"
-read -r -p "是(Y)/否(N): " INSNODEJS
+if [ "$AUTOINSTALL" = "auto" ]; then
+    INSNODEJS="Y"
+else
+    read -r -p "是(Y)/否(N): " INSNODEJS
+fi
 if [[ ${INSNODEJS} = "y" || ${INSNODEJS} = "Y" ]]; then
     install_nodejs
 fi
 
 show_ver "nginx -v" "Nginx"
-read -r -p "是(Y)/否(N): " INSNGINX
+if [ "$AUTOINSTALL" = "auto" ]; then
+    INSNGINX="Y"
+else
+    read -r -p "是(Y)/否(N): " INSNGINX
+fi
 if [[ ${INSNGINX} = "y" || ${INSNGINX} = "Y" ]]; then
     install_nginx
 fi
 
 show_ver "java -version" "Tomcat"
-read -r -p "是(Y)/否(N): " INSTOMCAT
+if [ "$AUTOINSTALL" = "auto" ]; then
+    INSTOMCAT="Y"
+else
+    read -r -p "是(Y)/否(N): " INSTOMCAT
+fi
 if [[ ${INSTOMCAT} = "y" || ${INSTOMCAT} = "Y" ]]; then
     install_tomcat
 fi
 
 echo_yellow "是否安装 ikev2?"
-read -r -p "是(Y)/否(N): " IKEV2
+if [ "$AUTOINSTALL" = "auto" ]; then
+    IKEV2="Y"
+else
+    read -r -p "是(Y)/否(N): " IKEV2
+fi
 if [[ ${IKEV2} = "y" || ${IKEV2} = "Y" ]]; then
     install_ikev2
 fi
 
 echo_yellow "是否启用防火墙(默认启用)?"
-read -r -p "是(Y)/否(N): " FIRE
-if [[ ${FIRE} = "n" || ${FIRE} = "N" ]]; then
+if [ "$AUTOINSTALL" = "auto" ]; then
+    FIREWALL="Y"
+else
+    read -r -p "是(Y)/否(N): " FIREWALL
+fi
+if [[ ${FIREWALL} = "n" || ${FIREWALL} = "N" ]]; then
     systemctl stop firewalld
     systemctl disable firewalld
 else
