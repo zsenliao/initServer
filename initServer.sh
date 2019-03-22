@@ -257,12 +257,22 @@ ssh_setting() {
     service rsyslog restart
 
     if [[ "${DOWNFILE}" = "y" || "${DOWNFILE}" = "Y" ]]; then
-        echo_green "登录方式：证书登录(如设置了证书密码，还需要输入密码)"
-        echo_red "请根据实际情况修改证书路径，并将证书文件设置 600 权限：chmod 600 ${FILENAME}"
-        echo_red "请注意：如果本地有多个证书，以下命令会连接失败！需要在 .ssh/config 文件中添加 Host 将服务器与证书对应"
+        echo_green "已设置证书登录(如设置了证书密码，还需要输入密码)，登录方式："
         echo "ssh -i ./${FILENAME} -p ${SSHPORT} ${USERNAME}@${HOSTIP}"
+        echo_blue "请根据实际情况修改上面命令中 ./${FILENAME} 证书路径，并将证书文件设置 600 权限：chmod 600 ${FILENAME}"
+        echo_red "请注意：如果本地有多个证书，以上命令会连接失败！需要在 .ssh/config 文件中添加 Host 将服务器与证书对应"
+        echo_blue "参考以下方式添加 .ssh/config 内容："
+        echo "Host myServer"
+        echo "    HostName ${HOSTIP}"
+        echo "    User ${USERNAME}"
+        echo "    Port ${SSHPORT}"
+        echo "    PreferredAuthentications publickey"
+        echo "    IdentityFile ./${FILENAME}"
+        echo "    IdentitiesOnly yes"
+        echo_blue "同样请根据实际情况修改上面命令中 ./${FILENAME} 证书路径，然后通过以下命令连接："
+        echo "ssh myServer"
     else
-        echo_green "登录方式: 密码(需要输入用户密码 ${PASSWORD})"
+        echo_green "已设置用户密码登录(登录时需输入用户密码 ${PASSWORD})。登录方式："
         echo "ssh -p ${SSHPORT} $(whoami)@${HOSTIP}"
     fi
 
