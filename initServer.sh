@@ -2,29 +2,32 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
+# todo 增加邮件发送设置
+# todo 增加自动安装
+# AUTOINSTALL=$1
+STARTTIME=$(date +%s)
 CUR_DIR=$(cd $(dirname $BASH_SOURCE); pwd)
 MemTotal=$(free -m | grep Mem | awk '{print  $2}')
 MODE=''
-HOSTIP=$(curl ip.cip.cc 2>/dev/null)
-start_time=$(date +%s)
 
 CMAKEVER=3.13.2
 PYTHONVER=3.7.2
-NODEJSVER=10.15.0
+NODEJSVER=10.15.3
 DAEMONVER=1.16.18
 NGINXVER=1.15.6
-PHPVER=7.2.13
+PHPVER=7.2.16
+MCRYPTVER=1.0.2
 REDISVER=5.0.3
 MYSQLVER=5.7.21
 
-set_time_zone() {
-    echo_blue "设置时区..."
-    rm -rf /etc/localtime
-    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-}
-
-get_os_name() {
-    OSNAME=$(cat /etc/*-release | grep -i ^name | awk 'BEGIN{FS="=\""} {print $2}' | awk '{print $1}')
+get_server_ip() {
+    local CURLTXT
+    CURLTXT=$(curl httpbin.org/ip 2>/dev/null | grep origin | awk '{print $3}')
+    if [ ${CURLTXT} = "" ]; then
+        HOSTIP=$(curl ifconfig.io 2>/dev/null)  # ifconfig.me ip.cip.cc api.ip.la
+    else
+        HOSTIP=${CURLTXT:0:-1}
+    fi
 }
 
 check_hosts() {
@@ -32,15 +35,6 @@ check_hosts() {
         echo_green "Hosts: ok!"
     else
         echo "127.0.0.1 localhost.localdomain localhost" >> /etc/hosts
-    fi
-    pingresult=$(ping -c1 baidu.com 2>&1)
-    echo_blue "${pingresult}"
-    if echo "${pingresult}" | grep -q "unknown host"; then
-        echo_red "DNS...fail!"
-        echo_blue "Writing nameserver to /etc/resolv.conf ..."
-        echo -e "nameserver 208.67.220.220\nnameserver 114.114.114.114" > /etc/resolv.conf
-    else
-        echo_green "DNS...ok!"
     fi
 }
 
@@ -70,13 +64,18 @@ echo_blue() {
     color_text "$1" "34"
 }
 
+echo_info() {
+    printf "%-s: \e[0;33m%-s\e[0m\n" $1 $2
+}
+
 ins_begin() {
     MODE=$1
     color_text "[+] 安装 $1..." "34"
 }
 
 ins_end() {
-    local version=$($1 --version)
+    local version
+    version=$($1 --version)
     [ $? -eq 0 ] && echo_green "[√] $MODE 安装成功! 当前版本：$version" || echo_red "[x] $MODE 安装失败! "
 }
 
@@ -95,6 +94,12 @@ wget_cache() {
     if [ ! -f "$2" ]; then
         wget -c "$1" -O "$2"
     fi
+}
+
+set_time_zone() {
+    echo_blue "设置时区..."
+    rm -rf /etc/localtime
+    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 }
 
 set_host_name() {
@@ -151,7 +156,7 @@ add_user() {
     chmod -R 755 "/home/${USERNAME}"
     chmod 700 "/home/${USERNAME}/.ssh"
     chmod 600 "/home/${USERNAME}/.ssh/${FILENAME}"
-    restorecon -Rv "/home/${USERNAME}/.ssh" 
+    restorecon -Rv "/home/${USERNAME}/.ssh"
     echo_green "[√] 添加用户成功!"
     # fi
 }
@@ -171,7 +176,7 @@ ssh_setting() {
             sed -i "s|AuthorizedKeysFile.*|AuthorizedKeysFile .ssh/${FILENAME}.pub|g" /etc/ssh/sshd_config
         fi
         #echo "" >> /etc/ssh/sshd_config
-        #echo "AllowUsers ${USERNAME}" >> /etc/ssh/sshd_config        
+        #echo "AllowUsers ${USERNAME}" >> /etc/ssh/sshd_config
     fi
 
     echo_yellow "是否修改 SSH 默认端口(强烈建议修改，如不修改请直接回车)?"
@@ -182,7 +187,7 @@ ssh_setting() {
 
     echo_yellow "是否限制指定 IP 连接?"
     echo_red "注意：如限定，除该IP外的其他连接请求都将被拒绝!"
-    read -r -p "请输入 IP 地址: " LOGINIP
+    read -r -p "请输入 IP 地址(不限定请直接回车): " LOGINIP
     if [ -n "${LOGINIP}" ]; then
         sed -i "s/^ListenAddress [0-9.]*/#&/g; 1,/^#ListenAddress [0-9.]*/{s/^#ListenAddress [0-9.]*/ListenAddress ${LOGINIP}/g}" /etc/ssh/sshd_config
     fi
@@ -197,7 +202,7 @@ ssh_setting() {
     sed -i "s/^Protocol [0-9]*/#&/g; 1,/^#Protocol [0-9]*/{s/^#Protocol [0-9]*/Protocol 2/g}" /etc/ssh/sshd_config
     # 是否允许公钥认证
     sed -i "s/^PubkeyAuthentication [a-z]*/#&/g; 1,/^#PubkeyAuthentication [a-z]*/{s/^#PubkeyAuthentication [a-z]*/PubkeyAuthentication yes/g}" /etc/ssh/sshd_config
-    # 是否允许密码为空的用户远程登录。默认为"no"
+    # 是否允许密码为空的用户远程登录。默认为no
     sed -i "s/^PermitEmptyPasswords [a-z]*/#&/g; 1,/^#PermitEmptyPasswords [a-z]*/{s/^#PermitEmptyPasswords [a-z]*/PermitEmptyPasswords no/g}" /etc/ssh/sshd_config
     # 是否使用PAM模块认证
     sed -i "s/^UsePAM [a-z]*/#&/g; 1,/^#UsePAM [a-z]*/{s/^#UsePAM [a-z]*/UsePAM no/g}" /etc/ssh/sshd_config
@@ -213,7 +218,7 @@ ssh_setting() {
     sed -i "s/^ClientAliveCountMax [0-9]/#&/g; 1,/^#ClientAliveCountMax [0-9]/{s/^#ClientAliveCountMax [0-9]/ClientAliveCountMax 3/g}" /etc/ssh/sshd_config
     # 指定是否显示最后一位用户的登录时间
     sed -i "s/^PrintLastLog [a-z]*/#&/g; 1,/^#PrintLastLog [a-z]*/{s/^#PrintLastLog [a-z]*/PrintLastLog yes/g}" /etc/ssh/sshd_config
-    # 登入后是否显示出一些信息呢，例如上次登入的时间、地点等等
+    # 登入后是否显示出一些信息，例如上次登入的时间、地点等等
     sed -i "s/^PrintMotd [a-z]*/#&/g; 1,/#PrintMotd[a-z]*/{s/^#PrintMotd [a-z]*/PrintMotd no/g}" /etc/ssh/sshd_config
     # 使用 rhosts 档案在 /etc/hosts.equiv配合 RSA 演算方式来进行认证, 推荐no。RhostsRSAAuthentication 是version 1
     sed -i "s/^HostbasedAuthentication [a-z]*/#&/g; 1,/#HostbasedAuthentication[a-z]*/{s/^#HostbasedAuthentication [a-z]*/HostbasedAuthentication no/g}" /etc/ssh/sshd_config
@@ -252,16 +257,17 @@ ssh_setting() {
     service rsyslog restart
 
     if [[ "${DOWNFILE}" = "y" || "${DOWNFILE}" = "Y" ]]; then
-        echo_green "登录方式(根据实际情况修改证书路径，如设置了证书密码还需要输入密码)："
-        echo_red "请将你的证书文件设置 600 权限： chmod 600 ${FILENAME}"
+        echo_green "登录方式：证书登录(如设置了证书密码，还需要输入密码)"
+        echo_red "请根据实际情况修改证书路径，并将证书文件设置 600 权限：chmod 600 ${FILENAME}"
+        echo_red "请注意：如果本地有多个证书，以下命令会连接失败！需要在 .ssh/config 文件中添加 Host 将服务器与证书对应"
         echo "ssh -i ./${FILENAME} -p ${SSHPORT} ${USERNAME}@${HOSTIP}"
     else
-        echo_green "登录方式(需要输入用户密码 ${PASSWORD})："
+        echo_green "登录方式: 密码(需要输入用户密码 ${PASSWORD})"
         echo "ssh -p ${SSHPORT} $(whoami)@${HOSTIP}"
     fi
 
-    echo_blue "[!] 请连接一个新的 ssh 到服务器，看是否能连接成功"
-    echo_yellow "是否连接成功(请注意: 建议在客户端 .ssh/config 文件中添加 Host 将服务器与证书对应)?"
+    echo_blue "[!] 请按照以上方式，打开一个新的 ssh 会话到服务器，看是否能连接成功"
+    echo_yellow "是否连接成功?"
     read -r -p "成功(Y)/失败(N): " SSHSUSS
     if [[ "${SSHSUSS}" = "n" || "${SSHSUSS}" = "N" ]]; then
         if [ -n "${USERNAME}" ]; then
@@ -283,7 +289,7 @@ ssh_setting() {
         firewall-cmd --reload
         echo_blue "正在重启 SSH 服务..."
         service sshd restart
-        echo_red "已复原 SSH 配置!"
+        echo_red "[!] 已复原 SSH 配置!"
     else
         echo_green "[√] SSH 配置修改成功!"
     fi
@@ -354,12 +360,11 @@ install_vim() {
     echo_blue "[+] 安装 vim 插件..."
     curl https://raw.githubusercontent.com/wklken/vim-for-server/master/vimrc > ~/.vimrc
     echo 'alias vi="vim"' >> ~/.zshrc
-    source ~/.zshrc
 
     mkdir -p ~/.vim/syntax
 
     wget -O ~/.vim/syntax/nginx.vim http://www.vim.org/scripts/download_script.php?src_id=19394
-    echo "au BufRead,BufNewFile ${INSHOME}/wwwconf/nginx/*,/usr/local/nginx/conf/* if &ft == '' | setfiletype nginx | endif " >> ~/.vim/filetype.vim  
+    echo "au BufRead,BufNewFile ${INSHOME}/wwwconf/nginx/*,/usr/local/nginx/conf/* if &ft == '' | setfiletype nginx | endif " >> ~/.vim/filetype.vim
 
     wget -O ini.vim.zip https://www.vim.org/scripts/download_script.php?src_id=10629
     unzip ini.vim.zip && mv vim-ini-*/ini.vim ~/.vim/syntax/ini.vim
@@ -402,8 +407,6 @@ install_acme() {
         yum install -y socat
 
         curl https://get.acme.sh | sh
-        source ~/.zshrc
-        source ~/.bashrc
 
         /root/.acme.sh/acme.sh --upgrade --auto-upgrade
 
@@ -586,9 +589,9 @@ status() {
 kill() {
     # killall -9 uwsgi
     echo "shutting down uWSGI service ......"
-    pids=\$(ps aux | grep uwsgi | grep -v grep | awk '{ print $2 }')
+    pids=\$(ps aux | grep uwsgi | grep -v grep | awk '{ print \$2 }')
     for pid in \$pids[@]
-    do 
+    do
         # echo \$pid | xargs kill -9
         \`kill -9 \$pid\`
     done
@@ -966,8 +969,8 @@ EOF
     /etc/init.d/mysqld start
 
     # 设置数据库密码
-    # /usr/local/mysql/bin/mysql -e "grant all privileges on *.* to root@'127.0.0.1' identified by \"${DBROOTPWD}\" with grant option;"  
-    # /usr/local/mysql/bin/mysql -e "grant all privileges on *.* to root@'localhost' identified by \"${DBROOTPWD}\" with grant option;"  
+    # /usr/local/mysql/bin/mysql -e "grant all privileges on *.* to root@'127.0.0.1' identified by \"${DBROOTPWD}\" with grant option;"
+    # /usr/local/mysql/bin/mysql -e "grant all privileges on *.* to root@'localhost' identified by \"${DBROOTPWD}\" with grant option;"
 
     /usr/local/mysql/bin/mysqladmin -u root password "${DBROOTPWD}"
     if [ $? -ne 0 ]; then
@@ -1131,7 +1134,7 @@ http
         gzip_comp_level    6;
         gzip_buffers       16 8k;
         gzip_types         text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript application/javascript image/svg+xml;
-        
+
         gzip_proxied       any;
         gzip_disable       "msie6";
 
@@ -1141,20 +1144,17 @@ http
         brotli_comp_level  6;
         brotli_types       text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript application/javascript image/svg+xml;
 
-        #limit_conn_zone    $binary_remote_addr zone=perip:10m;
-        ##If enable limit_conn_zone,add "limit_conn perip 10;" to server section.
-
         server_tokens off;
         access_log off;
 
-        # php-fpm Configure 
+        # php-fpm Configure
         fastcgi_connect_timeout 300;
         fastcgi_send_timeout 300;
         fastcgi_read_timeout 300;
         fastcgi_buffer_size 64k;
         fastcgi_buffers 4 64k;
         fastcgi_busy_buffers_size 128k;
-        fastcgi_temp_file_write_size 256k; 
+        fastcgi_temp_file_write_size 256k;
 
         server {
             listen 80 default_server;
@@ -1290,7 +1290,8 @@ install_php() {
     yum -y remove php* libzip
     rpm -qa | grep php
     rpm -e php-mysql php-cli php-gd php-common php --nodeps
-    yum -y install libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libmcrypt-devel libmcrypt mhash mcrypt libicu-devel
+    yum -y install libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libicu-devel
+    yum install libmcrypt libmcrypt-devel mcrypt mhash
 
     wget_cache https://libzip.org/download/libzip-1.5.1.tar.gz libzip-1.5.1.tar.gz
     tar zxf libzip-1.5.1.tar.gz
@@ -1337,7 +1338,6 @@ EOF
                 --disable-rpath \
                 --enable-fpm \
                 --enable-xml \
-                --disable-rpath \
                 --enable-bcmath \
                 --enable-shmop \
                 --enable-sysvsem \
@@ -1467,6 +1467,15 @@ EOF
 
     cd ..
 
+    wget_cache http://pecl.php.net/get/mcrypt-${MCRYPTVER}.tgz
+    tar xf mcrypt-${MCRYPTVER}.tgz
+    cd mcrypt-${MCRYPTVER}
+    phpize
+    ./configure --with-php-config=/usr/local/php/bin/php-config
+    make && make install
+    echo "extension=mcrypt.so" >> /usr/local/php/etc/php.ini
+    cd ..
+
     if [ -s /usr/local/redis/bin/redis-server ]; then
         wget_cache https://github.com/phpredis/phpredis/archive/master.zip phpredis-master.zip
         unzip phpredis-master.zip
@@ -1474,7 +1483,6 @@ EOF
         phpize
         ./configure --with-php-config=/usr/local/php/bin/php-config
         make && make install
-
         echo "extension=redis.so" >> /usr/local/php/etc/php.ini
         cd ..
     fi
@@ -1582,7 +1590,7 @@ start() {
         /bin/su -m -c "cd \$BASEDIR/bin && \$EXEC \$CONF" \$REDIS_USER
         if [ \$? -eq 0 ]; then
             log_success_msg "Starting \$DESC: " "SUCCESS"
-        else 
+        else
             log_failure_msg "Starting \$DESC: " "Failed"
         fi
     fi
@@ -1707,15 +1715,14 @@ clean_install() {
     fi
 
     echo_green "服务器环境安装配置成功！"
+    echo_blue "环境管理命令：${MYNAME}"
     echo_blue "可以通过 ${MYNAME} vhost add 来添加网站"
-    echo_blue "环境管理命令："
-    ${MYNAME}
     echo " "
     echo_blue "网站程序目录：${INSHOME}/wwwroot"
+    echo_blue "网站日志目录：${INSHOME}/wwwlogs"
+    echo_blue "配置文件目录：${INSHOME}/wwwconf"
     echo_blue "MySQL 数据库目录：${INSHOME}/database/mysql"
     echo_blue "Redis 数据库目录：${INSHOME}/database/redis"
-    echo_blue "日志目录：${INSHOME}/wwwlogs"
-    echo_blue "配置文件目录：${INSHOME}/wwwconf"
     echo " "
     echo_blue "MySQL ROOT 密码：${DBROOTPWD}"
     echo_blue "Redis 安全密码：${REDISPWD}"
@@ -1728,26 +1735,54 @@ clean_install() {
     else
         netstat -ntl
     fi
-    stop_time=$(date +%s)
-    echo_blue "总共用时 $(((stop_time-start_time)/60)) 分"
+    ENDTIME=$(date +%s)
+    echo_blue "总共用时 $(((ENDTIME-STARTTIME)/60)) 分"
 }
+
+OSNAME=$(cat /etc/*-release | grep -i ^name | awk 'BEGIN{FS="=\""} {print $2}' | awk '{print $1}')
+if [[ ${OSNAME} != "CentOS" ]]; then
+    echo_red "此脚本仅适用于 CentOS 系统！"
+    exit 1
+fi
 
 if [[ $(id -u) != "0" ]]; then
     echo_red "错误提示: 请在 root 账户下运行此脚本!"
     exit 1
 fi
 
-set_time_zone
-check_hosts
-get_os_name
-if [[ ${OSNAME} != "CentOS" ]]; then
-    echo_red "此脚本仅适用于 CentOS 系统！"
-    exit 1
+fdisk -l | grep vdb 2>&1
+if [ $? -eq 0 ]; then
+    SENCOND=$(df -h | grep vdb 2>&1)
+    if [ -z "$SENCOND" ]; then
+        echo_red "监测到服务器有第二磁盘且未挂载。建议可先退出程序，参照云服务商说明挂载磁盘后再运行本工具"
+        read -r -p "是否退出(q),不退出请直接回车? " EXITTOOLS
+        if [[ ${EXITTOOLS} = "q" || ${EXITTOOLS} = "Q" ]]; then
+            exit 0
+        fi
+    fi
 fi
-systemctl start firewalld
 
-# 显示磁盘空间
+echo_blue "========= 服务器基本信息 ========="
+get_server_ip
+MEMINFO=$(free -h | grep Mem)
+echo_info "服务器IP/名称" "${HOSTIP}　/　$(uname -n)"
+echo_info "处理器类型/内核版本" "$(uname -p)　/　$(uname -r)"
+echo_info "硬件平台/架构" "$(uname -i)　/　$(uname -m)"
+echo_info "内存大小/空闲" "$(echo $MEMINFO|awk '{print $2}')　/　$(echo $MEMINFO|awk '{print $4}')"
+echo_info "CPU型号" "$(cat /proc/cpuinfo|grep 'model name'|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/　/g')"
+echo_info "物理CPU数/每个核数" "$(cat /proc/cpuinfo|grep 'physical id'|sort|uniq|wc -l)　/　$(cat /proc/cpuinfo|grep 'cpu cores'|uniq|awk '{print $4}')"
+echo_info "逻辑CPU数" "$(cat /proc/cpuinfo|grep 'processor'|wc -l)"
+echo_info "服务器时间" "$(date '+%Y年%m月%d日　%H:%M:%S')"
+echo ""
+echo_blue "========= 服务器硬盘信息 ========="
 df -h
+echo ""
+echo_blue "========= 开始系统安装 ========="
+echo_yellow "是否调整时区?"
+read -r -p "是(Y)/否(N): " SETTIMEZONE
+if [[ ${SETTIMEZONE} = "y" || ${SETTIMEZONE} = "Y" ]]; then
+    set_time_zone
+fi
 
 echo_yellow "请输入安装目录（比如 /home 或 /data），默认 /data"
 read -r -p "请输入: " INSHOME
@@ -1760,7 +1795,9 @@ mkdir -p ${INSHOME}
 mkdir -p "${CUR_DIR}/src"
 cd "${CUR_DIR}/src" || exit
 
+systemctl start firewalld
 disable_selinux
+check_hosts
 
 yum update
 yum upgrade -y
