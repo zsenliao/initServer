@@ -5,6 +5,7 @@ export LE_WORKING_DIR="/root/.acme.sh"
 
 arg1=$1
 arg2=$2
+MYNAME=${0##*/}
 DATAHOME="/home"
 
 color_text() {
@@ -52,6 +53,7 @@ server_start() {
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm start || echo_red "PHP 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis start || echo_red "Redis 未安装"
     [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi start || echo_red "Python uWSGI 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat start || echo_red "Tomcat 未安装"
 }
 
 server_stop() {
@@ -61,6 +63,7 @@ server_stop() {
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm stop || echo_red "PHP 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis stop || echo_red "Redis 未安装"
     [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi stop || echo_red "Python uWSGI 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat stop || echo_red "Tomcat 未安装"
 }
 
 server_reload() {
@@ -70,6 +73,7 @@ server_reload() {
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm reload || echo_red "PHP 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis reload || echo_red "Redis 未安装"
     [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi reload || echo_red "Python uWSGI 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat reload || echo_red "Tomcat 未安装"
 }
 
 server_restart() {
@@ -79,6 +83,7 @@ server_restart() {
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm restart || echo_red "PHP 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis restart || echo_red "Redis 未安装"
     [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi restart || echo_red "Python uWSGI 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat restart || echo_red "Tomcat 未安装"
 }
 
 server_test() {
@@ -98,16 +103,14 @@ server_kill() {
 server_status() {
     echo_blue "内存使用:"
     free -m
-    echo "=================="
-    echo_blue "防火墙状态:"
+    echo_blue "========= 防火墙状态 ========="
     firewall-cmd --list-all
-    echo "=================="
-    echo_blue "存储容量:"
+    echo_blue "========= 存储容量 ========="
     df -h /
     echo ""
     du -h "${DATAHOME}" -d 1
-    echo "=================="
-    echo_blue "服务状态:"
+    echo ""
+    echo_blue "========= 服务状态 ========="
     [ -x /etc/init.d/nginx ] && /etc/init.d/nginx status || echo_red "Nginx 未安装"
     if [ -x /etc/init.d/mysqld ]; then
         /etc/init.d/mysqld status
@@ -117,6 +120,7 @@ server_status() {
     [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm status || echo_red "PHP 未安装"
     [ -x /etc/init.d/redis ] && /etc/init.d/redis status || echo_red "Redis 未安装"
     [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi status || echo_red "Python uWSGI 未安装"
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat status || echo_red "Tomcat 未安装"
 }
 
 add_vhost() {
@@ -129,7 +133,7 @@ add_vhost() {
         echo_yellow "请输入网站域名"
         read -r -p "如 zsen.club: " domain
         if [ "${domain}" != "" ]; then
-            if [ -f "/home/wwwconf/nginx/${domain}.conf" ]; then
+            if [ -f "${DATAHOME}/wwwconf/nginx/${domain}.conf" ]; then
                 echo_red "网站 ${domain} 已经存在，请重新输入！"
                 exit 1
             else
@@ -147,11 +151,11 @@ add_vhost() {
         echo_blue "绑定的更多域名: ${moredomain}"
     fi
 
-    vhostdir="/home/wwwroot/${domain}"
+    vhostdir="${DATAHOME}/wwwroot/${domain}"
     echo_yellow "请输入网站目录(如不更改请直接回车)"
-    read -r -p "默认目录 /home/wwwroot/${domain}: " vhostdir
+    read -r -p "默认目录 ${DATAHOME}/wwwroot/${domain}: " vhostdir
     if [ "${vhostdir}" == "" ]; then
-        vhostdir="/home/wwwroot/${domain}"
+        vhostdir="${DATAHOME}/wwwroot/${domain}"
     fi
     echo_blue "网站目录: ${vhostdir}"
 
@@ -172,7 +176,7 @@ add_vhost() {
         read -r -p "请输入: " appdir_temp
         appdir="/${appdir_temp}"
 
-        cat >"/home/wwwconf/uwsgi/${domain}.ini"<<EOF
+        cat >"${DATAHOME}/wwwconf/uwsgi/${domain}.ini"<<EOF
 [uwsgi]
 module=wsgi:app
 master=true
@@ -197,8 +201,8 @@ threads=2
 thunder-lock=true
 harakiri=30
 post-buffering=4096
-daemonize=/home/wwwlogs/${domain}.uwsgi.log
-#logto=/home/wwwlogs/${domain}.uwsgi.log
+daemonize=${DATAHOME}/wwwlogs/${domain}.uwsgi.log
+#logto=${DATAHOME}/wwwlogs/${domain}.uwsgi.log
 EOF
     else
         echo_err "uWSGI(Python)" "未安装"
@@ -240,8 +244,8 @@ EOF
         if [ "${al_name}" == "" ]; then
             al_name="${domain}"
         fi
-        al="access_log                  /home/wwwlogs/${al_name}.log;"
-        echo_blue "网站日志: /home/wwwlogs/${al_name}.log"
+        al="access_log                  ${DATAHOME}/wwwlogs/${al_name}.log;"
+        echo_blue "网站日志: ${DATAHOME}/wwwlogs/${al_name}.log"
     fi
 
     echo ""
@@ -254,20 +258,20 @@ EOF
     echo_blue "创建网站目录..."
     mkdir -p "${vhostdir}"
     if [ "${access_log}" == "y" ]; then
-        touch "/home/wwwlogs/${al_name}.log"
+        touch "${DATAHOME}/wwwlogs/${al_name}.log"
     fi
-    mkdir -p /home/wwwroot/challenges
-    chown -R nobody:nobody /home/wwwroot/challenges
-    chmod -R 777 /home/wwwroot/challenges
+    mkdir -p ${DATAHOME}/wwwroot/challenges
+    chown -R nobody:nobody ${DATAHOME}/wwwroot/challenges
+    chmod -R 777 ${DATAHOME}/wwwroot/challenges
 
     echo_blue "设置网站目录权限..."
     chmod -R 755 "${vhostdir}"
     chown -R nobody:nobody "${vhostdir}"
 
-    mkdir -p /home/wwwcert/scts
-    chown -R nobody:nobody /home/wwwcert/scts
+    mkdir -p ${DATAHOME}/wwwcert/scts
+    chown -R nobody:nobody ${DATAHOME}/wwwcert/scts
 
-    tmpvhost=$(ls /home/wwwconf/nginx/)
+    tmpvhost=$(ls ${DATAHOME}/wwwconf/nginx/)
     if [ -n "$tmpvhost" ]; then
         LISTEN="listen                      443;"
     else
@@ -275,7 +279,7 @@ EOF
     fi
 
     echo_blue "写入网站配置文件..."
-    cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
+    cat >"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 server
     {
         listen            80;
@@ -290,7 +294,7 @@ server
 
         # 安装证书时的验证目录
         location ^~ /.well-known/acme-challenge/ {
-            alias         /home/wwwroot/challenges/;
+            alias         ${DATAHOME}/wwwroot/challenges/;
             try_files     \$uri =404;
         }
 
@@ -305,9 +309,9 @@ EOF
     /usr/local/nginx/sbin/nginx -s reload
 
     echo_blue "安装证书..."
-    mkdir -p "/home/wwwcert/${domain}"
-    openssl dhparam -out "/home/wwwcert/${domain}/dhparams.pem" 2048
-    openssl rand 48 > "/home/wwwcert/${domain}/session_ticket.key"
+    mkdir -p "${DATAHOME}/wwwcert/${domain}"
+    openssl dhparam -out "${DATAHOME}/wwwcert/${domain}/dhparams.pem" 2048
+    openssl rand 48 > "${DATAHOME}/wwwcert/${domain}/session_ticket.key"
 
     # TODO 选择是否 DNSAPI 方式。如果是，可申请泛域名证书
     if [ "${moredomain}" != "" ]; then
@@ -320,12 +324,12 @@ EOF
 
     /root/.acme.sh/acme.sh --issue "${DAMIN}" --nginx
     /root/.acme.sh/acme.sh --installcert "${DAMIN}" \
-        --cert-file /home/wwwcert/"${domain}"/cert.pem \
-        --key-file /home/wwwcert/"${domain}"/"${domain}".key \
-        --fullchain-file /home/wwwcert/"${domain}"/fullchain.pem \
+        --cert-file ${DATAHOME}/wwwcert/"${domain}"/cert.pem \
+        --key-file ${DATAHOME}/wwwcert/"${domain}"/"${domain}".key \
+        --fullchain-file ${DATAHOME}/wwwcert/"${domain}"/fullchain.pem \
         --reloadcmd  "service nginx force-reload"
 
-    cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
+    cat >"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 server
     {
         ${LISTEN}
@@ -334,15 +338,15 @@ server
         server_tokens               off;
 
         # 中间证书 + 站点证书
-        ssl_certificate             /home/wwwcert/${domain}/fullchain.pem;
+        ssl_certificate             ${DATAHOME}/wwwcert/${domain}/fullchain.pem;
         # 创建 CSR 文件时用的密钥
-        ssl_certificate_key         /home/wwwcert/${domain}/${domain}.key;
-        ssl_dhparam                 /home/wwwcert/${domain}/dhparams.pem;
+        ssl_certificate_key         ${DATAHOME}/wwwcert/${domain}/${domain}.key;
+        ssl_dhparam                 ${DATAHOME}/wwwcert/${domain}/dhparams.pem;
         # 根证书 + 中间证书
         # https://imququ.com/post/why-can-not-turn-on-ocsp-stapling.html
-        ssl_trusted_certificate    /home/wwwcert/${domain}/cert.pem;
+        ssl_trusted_certificate    ${DATAHOME}/wwwcert/${domain}/cert.pem;
         # 单机部署可以不指定 ssl_session_ticket_key
-        #ssl_session_ticket_key     /home/wwwcert/${domain}/session_ticket.key;
+        #ssl_session_ticket_key     ${DATAHOME}/wwwcert/${domain}/session_ticket.key;
 
         ssl_protocols              TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
         ssl_ciphers                TLS13-AES-256-GCM-SHA384:TLS13-CHACHA20-POLY1305-SHA256:TLS13-AES-128-GCM-SHA256:TLS13-AES-128-CCM-8-SHA256:TLS13-AES-128-CCM-SHA256:EECDH+CHACHA20:EECDH+CHACHA20-draft:EECDH+ECDSA+AES128:EECDH+aRSA+AES128:RSA+AES128:EECDH+ECDSA+AES256:EECDH+aRSA+AES256:RSA+AES256:EECDH+ECDSA+3DES:EECDH+aRSA+3DES:RSA+3DES:!MD5;
@@ -368,7 +372,7 @@ server
 
         # 安装证书时的验证目录
         location ^~ /.well-known/acme-challenge/ {
-            alias         /home/wwwroot/challenges/;
+            alias         ${DATAHOME}/wwwroot/challenges/;
             try_files     \$uri =404;
         }
 
@@ -385,8 +389,8 @@ EOF
         if [[ "${allow_domain}" == "" ]]; then
             allow_domain="*"
         fi
-# todo 多域名的设置
-cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
+# TODO 多域名的设置
+cat >"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
         # set \$cors_origin "";
         # if (\$http_origin ~* "^${allow_domain[0]}\$") {
         #        set \$cors_origin \$http_origin;
@@ -416,7 +420,7 @@ cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
         }
 EOF
     fi
-cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
+cat >"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 
         root  ${vhostdir};
         index index.html index.htm index.php;
@@ -436,7 +440,7 @@ cat >"/home/wwwconf/nginx/${domain}.conf"<<EOF
         }
 EOF
     if [[ "${phpfpm}" == "y" || "${phpfpm}" == "Y" ]]; then
-cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
+cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 
         location ~ [^/]\\.php(/|$) {
             #try_files               \$uri =404;
@@ -452,7 +456,7 @@ EOF
     fi
 
     if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
-cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
+cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 
         location ${appdir} {
             include                 uwsgi_params;  # 导入一个Nginx模块他是用来和uWSGI进行通讯的
@@ -463,7 +467,7 @@ cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
 EOF
     fi
 
-cat >>"/home/wwwconf/nginx/${domain}.conf"<<EOF
+cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
         location ~ /\\. {
             deny all;
         }
@@ -509,16 +513,17 @@ EOF
     else
         echo_suc "日志" "启用"
     fi
+    echo_yellow "Tomcat 需要手动修改 /usr/local/tomcat/conf/server.xml 文件添加对应设置"
     echo "================================================"
 }
 
 list_vhost() {
     echo_blue "Nginx VirtualHost list:"
-    echo /home/wwwconf/nginx/*.conf | sed 's/.conf//g'
+    echo ${DATAHOME}/wwwconf/nginx/*.conf | sed 's/.conf//g'
 }
 
 del_vhost() {
-    echo_yellow "请手动删除 /home/wwwconf/ 目录下对应的网站配置文件和 /home/wwwroot/ 目录下的网站程序文件"
+    echo_yellow "请手动删除 ${DATAHOME}/wwwconf/ 目录下对应的网站配置文件和 ${DATAHOME}/wwwroot/ 目录下的网站程序文件"
 }
 
 vhost_menu() {
@@ -536,7 +541,7 @@ vhost_menu() {
             exit 1
             ;;
         *)
-            echo_yellow "Usage: pnmp vhost {add|list|del}"
+            echo_yellow "Usage: ${MYNAME} vhost {add|list|del}"
             exit 1
             ;;
     esac
@@ -546,10 +551,10 @@ check_cert_date() {
     acme.sh --list
     NOW=$(date +%s)
     MNOW=$(date +%s -d "30 day")
-    for certdir in $(ls /home/wwwcert)
+    for certdir in $(ls ${DATAHOME}/wwwcert)
     do
-        if [ -f "/home/wwwcert/${certdir}/cert.pem" ]; then
-            CERT_DATE=$(openssl x509 -in /home/wwwcert/"${certdir}"/cert.pem -noout -enddate)
+        if [ -f "${DATAHOME}/wwwcert/${certdir}/cert.pem" ]; then
+            CERT_DATE=$(openssl x509 -in ${DATAHOME}/wwwcert/"${certdir}"/cert.pem -noout -enddate)
             CERT_DATE_STR=${CERT_DATE#*=}
             SHOW_DATE=$(date "+%Y-%m-%d %H:%M:%S" -d "$CERT_DATE_STR")
             CERT_DATE_TIME=$(date "+%s" -d "$CERT_DATE_STR")
@@ -576,7 +581,7 @@ cert_menu() {
             acme.sh --install-cronjob
             ;;
         *)
-            echo_yellow "Usage: pnmp cert {check|update|auto}"
+            echo_yellow "Usage: ${MYNAME} cert {check|update|auto}"
             exit 1
             ;;
     esac
@@ -619,6 +624,9 @@ case "${arg1}" in
     uwsgi)
         /etc/init.d/uwsgi ${arg2}
         ;;
+    tomcat)
+        /etc/init.d/tomcat ${arg2}
+        ;;
     vhost)
         vhost_menu ${arg2}
         ;;
@@ -626,23 +634,19 @@ case "${arg1}" in
         cert_menu ${arg2}
         ;;
     upadte)
-        MYNAME=${0##*/}
         echo_blue "当前工具名称: ${MYNAME}"
-        HOMESTR=$(head -n 8 /usr/local/bin/"${MYNAME}" | grep DATAHOME)
-        INSHOME=${HOMESTR:9}
-        echo_blue "系统安装目录：${INSHOME}"
+        echo_blue "系统安装目录：${DATAHOME}"
         wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/"${MYNAME}"
-        sed -i "s|pnmp|${MYNAME}|g" /usr/local/bin/"${MYNAME}"
-        sed -i "s|/home/|${INSHOME}/|g" /usr/local/bin/"${MYNAME}"
+        sed -i "s|/home/|${DATAHOME}/|g" /usr/local/bin/"${MYNAME}"
         chmod +x /usr/local/bin/"${MYNAME}"
         ${MYNAME} status
         ;;
     *)
-        echo_yellow "Usage: pnmp {start|stop|reload|restart|kill|status|test}"
-        echo_yellow "Usage: pnmp {nginx|mysql|php-fpm|redis|uwsgi} {start|stop|reload|restart|kill|status}"
-        echo_yellow "Usage: pnmp vhost {add|list|del}"
-        echo_yellow "Usage: pnmp cert {check|update|auto}"
-        echo_yellow "Usage: pnmp upadte"
+        echo_yellow "Usage: ${MYNAME} {start|stop|reload|restart|kill|status|test}"
+        echo_yellow "Usage: ${MYNAME} {nginx|mysql|php-fpm|redis|uwsgi|tomcat} {start|stop|reload|restart|kill|status}"
+        echo_yellow "Usage: ${MYNAME} vhost {add|list|del}"
+        echo_yellow "Usage: ${MYNAME} cert {check|update|auto}"
+        echo_yellow "Usage: ${MYNAME} upadte"
         ;;
 esac
 exit

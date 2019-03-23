@@ -1746,23 +1746,15 @@ install_tomcat() {
 # Short-Description: start and stop tomcat
 ### END INIT INFO
 
-export JAVA_OPTS="-Dfile.encoding=UTF-8 \
-  -Dnet.sf.ehcache.skipUpdateCheck=true \
-  -XX:+UseConcMarkSweepGC \
-  -XX:+CMSClassUnloadingEnabled \
-  -XX:+UseParNewGC \
-  -XX:MaxPermSize=128m \
-  -Xms512m -Xmx512m"
-
-TOMCAT_USER=tomcat
-TOMCAT_HOME=/usr/local/tomcat
-CATALINA_HOME=/usr/local/tomcat
-DESC=Tomcat
-
+export JAVA_OPTS="-Dfile.encoding=UTF-8 -Dnet.sf.ehcache.skipUpdateCheck=true -XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled -XX:+UseParNewGC -XX:MaxPermSize=128m -Xms512m -Xmx512m"
 export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
 export JRE_HOME=/usr/lib/jvm/java-11-openjdk/jre
 PATH=$PATH:$JAVA_HOME/bin
 CLASSPATH=.:$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar
+TOMCAT_USER=tomcat
+TOMCAT_HOME=/usr/local/tomcat
+CATALINA_HOME=/usr/local/tomcat
+DESC=Tomcat
 
 log_success_msg(){
     printf "%-58s \\033[32m[ %s ]\\033[0m\\n" "\$@"
@@ -1773,18 +1765,6 @@ log_failure_msg(){
 log_warning_msg(){
     printf "%-58s \\033[33m[ %s ]\\033[0m\\n" "\$@"
 }
-
-./jsvc -user tomcat -pidfile /var/run/jsvc.pid \
-       -Djvm=tomcat -Xmx128M  -Xms128M \
-       -Dfile.encoding=UTF-8 \
-       -Djava.util.logging.config.file=/usr/local/tomcat/conf/logging.properties \
-       -Djava.util.logging.manager=org.apache.juli.ClassLoaderLogManager \
-       -Djava.endorsed.dirs=/usr/local/tomcat/endorsed \
-       -classpath /usr/local/tomcat/bin/bootstrap.jar:/usr/local/tomcat/bin/tomcat-juli.jar \
-       -Dcatalina.base=/usr/local/tomcat \
-       -Dcatalina.home=/usr/local/tomcat \
-       -Djava.io.tmpdir=/usr/local/tomcat/temp \
-       org.apache.catalina.startup.Bootstrap start
 
 tomcat_pid() {
     echo \`ps aux | grep org.apache.catalina.startup.Bootstrap | grep -v grep | awk '{ print \$2 }'\`
@@ -1907,7 +1887,6 @@ register_management-tool() {
     done
     wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
     sed -i "s|/home|${INSHOME}|g" /usr/local/bin/${MYNAME}
-    sed -i "s|pnmp|${MYNAME}|g" /usr/local/bin/${MYNAME}
     chmod +x /usr/local/bin/${MYNAME}
 
     if [[ ${NGINX} = "y" || ${NGINX} = "Y" ]]; then
