@@ -103,7 +103,7 @@ set_time_zone() {
 }
 
 set_host_name() {
-    echo_yellow "[+] 修改 HostName..."
+    echo_blue "[+] 修改 HostName..."
     if [[ "$AUTOINSTALL" = "auto" ]]; then
         HOST_NAME="myServer"
     else
@@ -117,7 +117,7 @@ set_host_name() {
 }
 
 add_user() {
-    echo_yellow "[+] 添加用户..."
+    echo_blue "[+] 添加用户..."
     while :;do
         read -r -p "请输入用户名: " USERNAME
         if [ "${USERNAME}" != "" ]; then
@@ -163,7 +163,7 @@ add_user() {
 }
 
 ssh_setting() {
-    echo_yellow "[+] 修改 SSH 配置..."
+    echo_blue "[+] 修改 SSH 配置..."
     cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 
     if [ -n "${USERNAME}" ]; then
@@ -200,6 +200,13 @@ ssh_setting() {
         sed -i "s/^PermitRootLogin [a-z]*/#&/g; 1,/^#PermitRootLogin [a-z]*/{s/^#PermitRootLogin [a-z]*/PermitRootLogin no/g}" /etc/ssh/sshd_config
     fi
 
+    echo_yellow "限制错误登录次数?"
+    read -r -p "请输入(默认3次): " MaxAuthTries
+    if [[ ${MaxAuthTries} = "" ]]; then
+        MaxAuthTries=3
+    fi
+    sed -i "s/^MaxAuthTries [0-9]*/#&/g; 1,/^#MaxAuthTries [0-9]*/{s/^#MaxAuthTries [0-9]*/MaxAuthTries ${MaxAuthTries}/g}" /etc/ssh/sshd_config
+
     sed -i "s/^Protocol [0-9]*/#&/g; 1,/^#Protocol [0-9]*/{s/^#Protocol [0-9]*/Protocol 2/g}" /etc/ssh/sshd_config
     # 是否允许公钥认证
     sed -i "s/^PubkeyAuthentication [a-z]*/#&/g; 1,/^#PubkeyAuthentication [a-z]*/{s/^#PubkeyAuthentication [a-z]*/PubkeyAuthentication yes/g}" /etc/ssh/sshd_config
@@ -227,8 +234,6 @@ ssh_setting() {
     sed -i "s/^IgnoreUserKnownHosts [a-z]*/#&/g; 1,/#IgnoreUserKnownHosts[a-z]*/{s/^#IgnoreUserKnownHosts [a-z]*/IgnoreUserKnownHosts yes/g}" /etc/ssh/sshd_config
     # 限制登录验证在30秒内
     sed -i "s/^LoginGraceTime [a-z0-9]*/#&/g; 1,/^#LoginGraceTime [a-z0-9]*/{s/^#LoginGraceTime [a-z0-9]*/LoginGraceTime 30/g}" /etc/ssh/sshd_config
-    # 限制错误登录次数
-    sed -i "s/^MaxAuthTries [0-9]*/#&/g; 1,/^#MaxAuthTries [0-9]*/{s/^#MaxAuthTries [0-9]*/MaxAuthTries 3/g}" /etc/ssh/sshd_config
 
     # 开启sftp日志
     sed -i "s/sftp-server/sftp-server -l INFO -f AUTH/g" /etc/ssh/sshd_config
@@ -796,24 +801,8 @@ install_mysql() {
     mkdir -p "${INSHOME}/database/mysql"
     chown -R mysql:mysql "${INSHOME}/database/mysql"
 
-    if [[ ${MemTotal} -lt 1024 ]]; then
-        echo_blue "内存过低，创建 SWAP 交换区..."
-        dd if=/dev/zero of=/swapfile bs=1k count=2048000  # 获取要增加的2G的SWAP文件块
-        mkswap /swapfile  # 创建SWAP文件
-        swapon /swapfile  # 激活SWAP文件
-        swapon -s  # 查看SWAP信息是否正确
-        # echo "/var/swapfile swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
-    fi
-
     cmake . -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/usr/local/boost -DMYSQL_DATADIR="${INSHOME}"/database/mysql -DDEFAULT_CHARSET=utf8 -DDEFAULT_COLLATION=utf8_general_ci
     make && make install
-
-    if [[ ${MemTotal} -lt 1024 ]]; then
-        echo_blue "删除 SWAP 交换区..."
-        # 删除SWAP文件块
-        swapoff /swapfile
-        rm -fr /swapfile
-    fi
 
     chgrp -R mysql /usr/local/mysql/.
     cp /usr/local/mysql/support-files/mysql.server /etc/init.d/mysqld
@@ -1723,11 +1712,12 @@ install_tomcat() {
     groupadd tomcat
     useradd -r -g tomcat -s /bin/false tomcat
     chmod -R 777 /usr/local/tomcat/logs
+    chown -R tomcat:tomcat /usr/local/tomcat
 
     sed -i 's#<Connector port="8080" protocol="HTTP/1.1"#<Connector port="8080" protocol="HTTP/1.1" maxThreads="1000"#g' /usr/local/tomcat/conf/server.xml
     sed -i 's#connectionTimeout="20000"#connectionTimeout="30000" minSpareThreads="100" maxSpareThreads="200" acceptCount="900"#g' /usr/local/tomcat/conf/server.xml
-    # sed -i 's#appBase="webapps"#appBase="/home/wwwroot"#g' /usr/local/tomcat/conf/server.xml
-    sed -i 's#directory="logs"#directory="/home/wwwlogs"#g' /usr/local/tomcat/conf/server.xml
+    # sed -i 's#appBase="webapps"#appBase="${INSHOME}/wwwroot"#g' /usr/local/tomcat/conf/server.xml
+    sed -i 's#directory="logs"#directory="${INSHOME}/wwwlogs"#g' /usr/local/tomcat/conf/server.xml
     sed -i 's#prefix="localhost_access_log" suffix=".txt"#prefix="tomcat_access" suffix=".log"#g' /usr/local/tomcat/conf/server.xml
 
     cat > /etc/init.d/tomcat<<EOF
@@ -1992,6 +1982,16 @@ echo_blue "========= 服务器硬盘信息 ========="
 df -h
 echo ""
 echo_blue "========= 开始系统安装 ========="
+
+if [[ ${MemTotal} -lt 1024 ]]; then
+    echo_blue "内存过低，创建 SWAP 交换区..."
+    dd if=/dev/zero of=/dev/swap bs=1k count=2048000  # 获取要增加的2G的SWAP文件块
+    mkswap /dev/swap  # 创建SWAP文件
+    swapon /dev/swap  # 激活SWAP文件
+    swapon -s  # 查看SWAP信息是否正确
+    # echo "/dev/swap swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
+fi
+
 echo_yellow "是否调整时区?"
 if [ "$AUTOINSTALL" = "auto" ]; then
     SETTIMEZONE="N"
@@ -2176,16 +2176,6 @@ else
 fi
 if [[ ${INSTOMCAT} = "y" || ${INSTOMCAT} = "Y" ]]; then
     install_tomcat
-fi
-
-echo_yellow "是否安装 ikev2?"
-if [ "$AUTOINSTALL" = "auto" ]; then
-    IKEV2="Y"
-else
-    read -r -p "是(Y)/否(N): " IKEV2
-fi
-if [[ ${IKEV2} = "y" || ${IKEV2} = "Y" ]]; then
-    install_ikev2
 fi
 
 echo_yellow "是否启用防火墙(默认启用)?"

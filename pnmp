@@ -8,36 +8,32 @@ arg2=$2
 MYNAME=${0##*/}
 DATAHOME="/home"
 
-color_text() {
-    echo -e "\e[0;$2m$1\e[0m"
-}
-
 echo_red() {
-    color_text "$1" "31"
+    echo -e "\e[0;31m$1\e[0m"
 }
 
 echo_green() {
-    color_text "$1" "32"
+    echo -e "\e[0;32m$1\e[0m"
 }
 
 echo_yellow() {
-    color_text "$1" "33"
+    echo -e "\e[0;33m$1\e[0m"
 }
 
 echo_blue() {
-    color_text "$1" "34"
+    echo -e "\e[0;34m$1\e[0m"
 }
 
 echo_suc() {
-    echo "$1: " "$(color_text \""$2"\" \"32\")"
+    echo -e "$1: " "\e[0;32m$2\e[0m"
 }
 
 echo_wrn() {
-    echo "$1: " "$(color_text \""$2"\" \"33\")"
+    echo "$1: " "\e[0;33m$2\e[0m"
 }
 
 echo_err() {
-    echo "$1: " "$(color_text \""$2"\" \"31\")"
+    echo "$1: " "\e[0;31m$2\e[0m"
 }
 
 # Check if user is root
@@ -101,7 +97,7 @@ server_kill() {
 }
 
 server_status() {
-    echo_blue "内存使用:"
+    echo_blue "========= 内存使用 ========="
     free -m
     echo_blue "========= 防火墙状态 ========="
     firewall-cmd --list-all
@@ -130,9 +126,9 @@ add_vhost() {
     fi
     domain=""
     while :;do
-        echo_yellow "请输入网站域名"
-        read -r -p "如 zsen.club: " domain
-        if [ "${domain}" != "" ]; then
+        echo_yellow "新增网站的主域名(绑定的其他域名会跳转到主域名)"
+        read -r -p "请输入: " domain
+        if [[ ${domain} != "" ]]; then
             if [ -f "${DATAHOME}/wwwconf/nginx/${domain}.conf" ]; then
                 echo_red "网站 ${domain} 已经存在，请重新输入！"
                 exit 1
@@ -147,29 +143,29 @@ add_vhost() {
 
     echo_yellow "是否绑定更多域名(如不绑定请直接回车)？"
     read -r -p "多个域名请用半角空格隔开: " moredomain
-    if [ "${moredomain}" != "" ]; then
+    if [[ ${moredomain} != "" ]]; then
         echo_blue "绑定的更多域名: ${moredomain}"
     fi
 
     vhostdir="${DATAHOME}/wwwroot/${domain}"
     echo_yellow "请输入网站目录(如不更改请直接回车)"
     read -r -p "默认目录 ${DATAHOME}/wwwroot/${domain}: " vhostdir
-    if [ "${vhostdir}" == "" ]; then
-        vhostdir="${DATAHOME}/wwwroot/${domain}"
+    if [[ ${vhostdir} != "" ]]; then
+        vhostdir="${DATAHOME}/wwwroot/${vhostdir}"
     fi
     echo_blue "网站目录: ${vhostdir}"
 
     if [ -x /etc/init.d/uwsgi ]; then
-        echo_yellow "是否启用 uWSGI(Python)? (y/n) "
+        echo_yellow "是否启用 uWSGI(Python)?"
         read -r -p "是(Y)/否(N): " uwsgi
     else
         uwsgi="n"
     fi
-    if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
+    if [[ ${uwsgi} = "y" || ${uwsgi} = "Y" ]]; then
         echo_blue "启用 uWSGI(Python)"
         echo_yellow "Python 入口文件(类似 app.py)"
         read -r -p "请输入: " appname
-        if [ "${appname}" == "" ]; then
+        if [[ ${appname} = "" ]]; then
             appname="app.py"
         fi
         echo_yellow "Python 系统目录"
@@ -209,13 +205,13 @@ EOF
     fi
 
     if [ -x /etc/init.d/php-fpm ]; then
-        echo_yellow "是否启用 PHP? (y/n) "
+        echo_yellow "是否启用 PHP?"
         read -r -p "是(Y)/否(N): " phpfpm
 
-        if [[ "${phpfpm}" == "y" || "${phpfpm}" == "Y" ]]; then
-            echo_yellow "是否限制站点目录防止跨站(PHP)? (y/n) "
+        if [[ ${phpfpm} = "y" || ${phpfpm} = "Y" ]]; then
+            echo_yellow "是否限制站点目录防止跨站(PHP)?"
             read -r -p "是(Y)/否(N): " phpallowed
-            if [[ "${phpallowed}" == "y" || "${phpallowed}" == "Y" ]]; then
+            if [[ ${phpallowed} = "y" || ${phpallowed} = "Y" ]]; then
                 open_basedir="fastcgi_param           PHP_VALUE \"open_basedir=\$document_root:/tmp/:/proc/\";"
             else
                 open_basedir=""
@@ -225,6 +221,17 @@ EOF
         echo_err "PHP" "未安装"
         phpfpm="n"
         phpallowed="n"
+    fi
+
+    if [ -x /etc/init.d/tomcat ]; then
+        echo_yellow "是否启用 Tomcat?"
+        read -r -p "是(Y)/否(N): " tomcat
+    else
+        tomcat="n"
+    fi
+    if [[ ${tomcat} = "y" || ${tomcat} = "Y" ]]; then
+        sed -i "/<\/Engine>/i      <Host name=\"${domain}\"  appBase=\"${vhostdir}\" unpackWARs=\"true\" autoDeploy=\"true\">\n        <Valve className=\"org.apache.catalina.valves.AccessLogValve\" directory=\"${DATAHOME}/wwwlogs\" prefix=\"${domain}.tomcat\" suffix=\".log\" pattern=\"%h %l %u %t &quot;%r&quot; %s %b\" />\n      </Host>" /usr/local/tomcat/conf/server.xml
+        echo "127.0.0.1  ${domain}" >> /etc/hosts
     fi
 
     echo_yellow "是否允许跨域请求? (y/n) "
@@ -249,7 +256,7 @@ EOF
     fi
 
     echo ""
-    echo_blue "请按任意键开始新建网站..."
+    echo_yellow "请按任意键开始新建网站..."
     OLDCONFIG=$(stty -g)
     stty -icanon -echo min 1 time 0
     dd count=1 2>/dev/null
@@ -257,6 +264,9 @@ EOF
 
     echo_blue "创建网站目录..."
     mkdir -p "${vhostdir}"
+    if [[ ${tomcat} = "y" || ${tomcat} = "Y" ]]; then
+        mkdir -p "${vhostdir}/ROOT"
+    fi
     if [ "${access_log}" == "y" ]; then
         touch "${DATAHOME}/wwwlogs/${al_name}.log"
     fi
@@ -329,7 +339,7 @@ EOF
         --fullchain-file ${DATAHOME}/wwwcert/"${domain}"/fullchain.pem \
         --reloadcmd  "service nginx force-reload"
 
-    cat >"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
+    cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 server
     {
         ${LISTEN}
@@ -390,7 +400,7 @@ EOF
             allow_domain="*"
         fi
 # TODO 多域名的设置
-cat >"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
+cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
         # set \$cors_origin "";
         # if (\$http_origin ~* "^${allow_domain[0]}\$") {
         #        set \$cors_origin \$http_origin;
@@ -420,16 +430,11 @@ cat >"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
         }
 EOF
     fi
-cat >"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
+cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 
         root  ${vhostdir};
         index index.html index.htm index.php;
         #error_page   404   /404.html;
-
-        #location ^~ /static/ {
-        #    root             ${vhostdir};
-        #    expires          max;
-        #}
 
         location ~ .*\\.(gif|jpg|jpeg|png|js|css)\$ {
             expires          max;
@@ -467,6 +472,19 @@ cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 EOF
     fi
 
+    if [[ "${tomcat}" == "y" || "{tomcat}" == "Y" ]]; then
+cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
+
+        location ^~ / {
+            proxy_pass              http://${domain}:8080/;
+            proxy_redirect          off;
+            proxy_set_header        Host \$host;
+            proxy_set_header        X-Real-IP \$remote_addr;
+            proxy_set_header        X-Forwarded-For \$proxy_add_x_forwarded_for;
+        }
+EOF
+    fi
+
 cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
         location ~ /\\. {
             deny all;
@@ -485,22 +503,22 @@ EOF
     echo_yellow "网站信息:"
     echo_suc "域名" "${domain}"
     echo_suc "目录" "${vhostdir}"
-    if [[ "${cors}" == "y" || "${cors}" == "Y" ]]; then
+    if [[ ${cors} = "y" || ${cors} = "Y" ]]; then
         echo_suc "跨域请求" "允许"
         echo_suc "允许请求域" "${allow_domain}"
     else
         echo_err "跨域请求" "禁止"
     fi
-    if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
+    if [[ ${uwsgi} = "y" || ${uwsgi} = "Y" ]]; then
         echo_suc "Python" "启用"
         echo_suc "Python 入口文件" ${appname}
         echo_suc "Python 系统目录" "${appdir}"
     else
         echo_err "Python" "禁用"
     fi
-    if [[ "${phpfpm}" == "y" || "${phpfpm}" == "Y" ]]; then
+    if [[ ${phpfpm} = "y" || ${phpfpm} = "Y" ]]; then
         echo_suc "PHP" "启用"
-        if [[ "${phpallowed}" == "y" || "${phpallowed}" == "Y" ]]; then
+        if [[ ${phpallowed} = "y" || ${phpallowed} = "Y" ]]; then
             echo_suc "限制 PHP 目录访问" "启用"
         else
             echo_err "限制 PHP 目录访问" "禁用"
@@ -508,7 +526,12 @@ EOF
     else
         echo_err "PHP" "禁用"
     fi
-    if [ "${access_log}" == "n" ]; then
+    if [[ ${tomcat} = "y" || ${tomcat} = "Y" ]]; then
+        echo_suc "Tomcat" "启用"
+    else
+        echo_err "Tomcat" "禁用"
+    fi
+    if [[ ${access_log} == "n" ]]; then
         echo_err "日志" "禁用"
     else
         echo_suc "日志" "启用"
