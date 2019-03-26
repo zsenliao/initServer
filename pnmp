@@ -220,7 +220,7 @@ daemonize=${DATAHOME}/wwwlogs/${domain}.uwsgi.log
 #logto=${DATAHOME}/wwwlogs/${domain}.uwsgi.log
 EOF
     else
-        echo_err "uWSGI(Python)" "未安装"
+        echo_err "uWSGI(Python)" "未启用"
     fi
 
     if [ -x /etc/init.d/php-fpm ]; then
@@ -237,7 +237,7 @@ EOF
             fi
         fi
     else
-        echo_err "PHP" "未安装"
+        echo_err "PHP" "未启用"
         phpfpm="n"
         phpallowed="n"
     fi
@@ -249,8 +249,10 @@ EOF
         tomcat="n"
     fi
     if [[ ${tomcat} = "y" || ${tomcat} = "Y" ]]; then
-        sed -i "/<\/Engine>/i      <Host name=\"${domain}\"  appBase=\"${vhostdir}\" unpackWARs=\"true\" autoDeploy=\"true\">\n        <Valve className=\"org.apache.catalina.valves.AccessLogValve\" directory=\"${DATAHOME}/wwwlogs\" prefix=\"${domain}.tomcat\" suffix=\".log\" pattern=\"%h %l %u %t &quot;%r&quot; %s %b\" />\n      </Host>" /usr/local/tomcat/conf/server.xml
+        sed -i "/<\/Engine>/i      <Host name=\"${domain}\"  appBase=\"\" unpackWARs=\"true\" autoDeploy=\"true\">\n        <Context path=\"\" reloadable=\"true\" docBase=\"${vhostdir}\" debug=\"0\" />\n        <Valve className=\"org.apache.catalina.valves.AccessLogValve\" directory=\"${DATAHOME}/wwwlogs\" prefix=\"${domain}_tomcat\" suffix=\".log\" pattern=\"%h %l %u %t &quot;%r&quot; %s %b\" />\n      </Host>" /usr/local/tomcat/conf/server.xml
         echo "127.0.0.1  ${domain}" >> /etc/hosts
+    else
+        echo_err "Tomcat" "未启用"
     fi
 
     echo_yellow "是否允许跨域请求?"
@@ -283,9 +285,6 @@ EOF
 
     echo_blue "创建网站目录..."
     mkdir -p "${vhostdir}"
-    if [[ ${tomcat} = "y" || ${tomcat} = "Y" ]]; then
-        mkdir -p "${vhostdir}/ROOT"
-    fi
     if [ "${access_log}" == "y" ]; then
         touch "${DATAHOME}/wwwlogs/${al_name}.log"
     fi
@@ -406,8 +405,8 @@ server
         add_header                 X-Content-Type-Options nosniff;
         add_header                 X-XSS-Protection "1; mode=block";
 EOF
-    if [[ "${cors}" == "y" || "${cors}" == "Y" ]]; then
-        if [[ "${allow_domain}" == "" ]]; then
+    if [[ ${cors} = "y" || ${cors} = "Y" ]]; then
+        if [[ "${allow_domain}" = "" ]]; then
             allow_domain="*"
         fi
 # TODO 多域名的设置
@@ -455,7 +454,7 @@ cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
             deny all;
         }
 EOF
-    if [[ "${phpfpm}" == "y" || "${phpfpm}" == "Y" ]]; then
+    if [[ ${phpfpm} = "y" || ${phpfpm} = "Y" ]]; then
 cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 
         location ~ [^/]\\.php(/|$) {
@@ -471,7 +470,7 @@ cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 EOF
     fi
 
-    if [[ "${uwsgi}" == "y" || "${uwsgi}" == "Y" ]]; then
+    if [[ ${uwsgi} = "y" || ${uwsgi} = "Y" ]]; then
 cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 
         location ${appdir} {
@@ -483,7 +482,7 @@ cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 EOF
     fi
 
-    if [[ "${tomcat}" == "y" || "{tomcat}" == "Y" ]]; then
+    if [[ ${tomcat} = "y" || ${tomcat} = "Y" ]]; then
 cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 
         location ^~ / {
@@ -539,7 +538,6 @@ EOF
     fi
     if [[ ${tomcat} = "y" || ${tomcat} = "Y" ]]; then
         echo_suc "Tomcat" "启用"
-        echo_suc "  程序文件目录" "${vhostdir}/ROOT"
     else
         echo_err "Tomcat" "禁用"
     fi

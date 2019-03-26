@@ -99,7 +99,7 @@ set_time_zone() {
 
 set_host_name() {
     echo_blue "[+] 修改 Hostname..."
-    if [[ $AUTOINSTALL = "auto" ]]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         HOST_NAME="myServer"
     else
         read -r -p "请输入 Hostname: " HOST_NAME
@@ -1409,7 +1409,11 @@ EOF
         echo "zend_extension=opcache.so" >> /usr/local/php/etc/php.ini
 
         echo_yellow "当前服务器是否生产服务器（如选择是，每次更新 PHP 代码后请重启 php-fpm）? "
-        read -r -p "是(Y)/否(N): " PHPPROD
+        if [[ ${AUTOINSTALL} = "auto" ]]; then
+            PHPPROD="Y"
+        else
+            read -r -p "是(Y)/否(N): " PHPPROD
+        fi
         if [[ ${PHPPROD} = "y" || ${PHPPROD} = "Y" ]]; then
             sed -i "s/;opcache.validate_timestamps=.*/opcache.validate_timestamps=0/g" /usr/local/php/etc/php.ini
         fi
@@ -1718,11 +1722,8 @@ install_tomcat() {
     chmod -R 777 /usr/local/tomcat/logs
     chown -R tomcat:tomcat /usr/local/tomcat
 
-    sed -i 's#<Connector port="8080" protocol="HTTP/1.1"#<Connector port="8080" protocol="HTTP/1.1" maxThreads="1000"#g' /usr/local/tomcat/conf/server.xml
-    sed -i 's#connectionTimeout="20000"#connectionTimeout="30000" minSpareThreads="100" maxSpareThreads="200" acceptCount="900"#g' /usr/local/tomcat/conf/server.xml
-    # sed -i 's#appBase="webapps"#appBase="${INSHOME}/wwwroot"#g' /usr/local/tomcat/conf/server.xml
-    # sed -i 's#directory="logs"#directory="${INSHOME}/wwwlogs"#g' /usr/local/tomcat/conf/server.xml
-    # sed -i 's#prefix="localhost_access_log" suffix=".txt"#prefix="tomcat_access" suffix=".log"#g' /usr/local/tomcat/conf/server.xml
+    sed -i 's#<Connector port="8080" protocol="HTTP/1.1"#<Connector port="8080" protocol="org.apache.coyote.http11.Http11NioProtocol" maxThreads="1000" enableLookups="false"#g' /usr/local/tomcat/conf/server.xml
+    sed -i 's#connectionTimeout="20000"#connectionTimeout="20000" minSpareThreads="100" acceptCount="900" disableUploadTimeout="true" maxKeepAliveRequests="15"#g' /usr/local/tomcat/conf/server.xml
 
     cat > /etc/init.d/tomcat<<EOF
 #!/bin/bash
