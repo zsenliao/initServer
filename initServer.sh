@@ -455,17 +455,17 @@ install_python3() {
 
     echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
     if [[ ${AUTOINSTALL} = "auto" ]]; then
-        DEFPYH="N"
+        echo_blue "自动安装，不设置 Python3 为默认环境"
     else
         read -r -p "是(Y)/否(N): " DEFPYH
-    fi
-    if [[ ${DEFPYH} = "y" || ${DEFPYH} = "Y" ]]; then
-        # rm -r /usr/bin/python
-        ln -sf /usr/local/bin/python3 /usr/local/bin/python
-        sed -i "s/python/python2/" /usr/bin/yum
+        if [[ ${DEFPYH} = "y" || ${DEFPYH} = "Y" ]]; then
+            # rm -r /usr/bin/python
+            ln -sf /usr/local/bin/python3 /usr/local/bin/python
+            sed -i "s/python/python2/" /usr/bin/yum
 
-        # rm -r /usr/bin/pip
-        ln -sf /usr/local/bin/pip3 /usr/local/bin/pip
+            # rm -r /usr/bin/pip
+            ln -sf /usr/local/bin/pip3 /usr/local/bin/pip
+        fi
     fi
 
     ins_end "python3"
@@ -1420,14 +1420,14 @@ EOF
 
     echo_yellow "是否安装 Composer? "
     if [[ ${AUTOINSTALL} = "auto" ]]; then
-        INSCPR="N"
+        echo_blue "自动安装，跳过安装 Composer"
     else
         read -r -p "是(Y)/否(N): " INSCPR
-    fi
-    if [[ ${INSCPR} = "y" || ${INSCPR} = "Y" ]]; then
-        ins_begin "Composer"
-        curl -sS --connect-timeout 30 -m 60 https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-        ins_end "composer"
+        if [[ ${INSCPR} = "y" || ${INSCPR} = "Y" ]]; then
+            ins_begin "Composer"
+            curl -sS --connect-timeout 30 -m 60 https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+            ins_end "composer"
+        fi
     fi
 
     echo_blue "Creating new php-fpm configure file..."
@@ -1505,21 +1505,21 @@ EOF
 
     echo_yellow "是否安装 MySQL 扩展（不建议安装，请使用最新版如 MySQLi 扩展）? "
     if [[ ${AUTOINSTALL} = "auto" ]]; then
-        PHPMYSQL="N"
+        echo_blue "自动安装，跳过安装 MySQL 扩展"
     else
         read -r -p "是(Y)/否(N): " PHPMYSQL
-    fi
-    if [[ ${PHPMYSQL} = "y" || ${PHPMYSQL} = "Y" ]]; then
-        wget -c --no-cookie "http://git.php.net/?p=pecl/database/mysql.git;a=snapshot;h=647c933b6cc8f3e6ce8a466824c79143a98ee151;sf=tgz" -O php-mysql.tar.gz
-        mkdir ./php-mysql
-        tar xzf php-mysql.tar.gz -C ./php-mysql --strip-components 1
-        cd php-mysql
-        phpize
-        ./configure  --with-php-config=/usr/local/php/bin/php-config --with-mysql=mysqlnd
-        make && make install
-        echo "extension=mysql.so" >> /usr/local/php/etc/php.ini
-        # sed -i "s/^error_reporting = .*/error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED/g" /usr/local/php/etc/php.ini
-        cd ..
+        if [[ ${PHPMYSQL} = "y" || ${PHPMYSQL} = "Y" ]]; then
+            wget -c --no-cookie "http://git.php.net/?p=pecl/database/mysql.git;a=snapshot;h=647c933b6cc8f3e6ce8a466824c79143a98ee151;sf=tgz" -O php-mysql.tar.gz
+            mkdir ./php-mysql
+            tar xzf php-mysql.tar.gz -C ./php-mysql --strip-components 1
+            cd php-mysql
+            phpize
+            ./configure  --with-php-config=/usr/local/php/bin/php-config --with-mysql=mysqlnd
+            make && make install
+            echo "extension=mysql.so" >> /usr/local/php/etc/php.ini
+            # sed -i "s/^error_reporting = .*/error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED/g" /usr/local/php/etc/php.ini
+            cd ..
+        fi
     fi
 
     sed -i "s#;open_basedir =#open_basedir = ${INSHOME}/wwwroot#g" /usr/local/php/etc/php.ini
@@ -1531,7 +1531,7 @@ install_redis() {
     ins_begin "Redis"
 
     echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
-    if [[ $AUTOINSTALL = "auto" ]]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         REDISPWD=""
     else
         read -r -p "密码: " REDISPWD
@@ -1935,12 +1935,12 @@ clean_install() {
     if [[ ${INSNGINX} = "y" || ${INSNGINX} = "Y" ]]; then
         echo_yellow "是否要添加默认站点? "
         if [[ ${AUTOINSTALL} = "auto" ]]; then
-            ADDHOST="N"
+            echo_blue "自动化脚本不添加默认站点"
         else
             read -r -p "是(Y)/否(N): " ADDHOST
-        fi
-        if [[ ${ADDHOST} = "y" || ${ADDHOST} = "Y" ]]; then
-            ${MYNAME} vhost add
+            if [[ ${ADDHOST} = "y" || ${ADDHOST} = "Y" ]]; then
+                ${MYNAME} vhost add
+            fi
         fi
     fi
 }
@@ -1961,7 +1961,9 @@ if [ $? -eq 0 ]; then
     SENCOND=$(df -h | grep vdb 2>&1)
     if [ -z "$SENCOND" ]; then
         echo_red "监测到服务器有第二磁盘且未挂载。建议可先退出程序，参照云服务商说明挂载磁盘后再运行本工具"
-        if [[ ${AUTOINSTALL} != "auto" ]]; then
+        if [[ ${AUTOINSTALL} = "auto" ]]; then
+            echo_blue "自动化脚本不退出"
+        else
             read -r -p "是否退出(q),不退出请直接回车? " EXITTOOLS
             if [[ ${EXITTOOLS} = "q" || ${EXITTOOLS} = "Q" ]]; then
                 exit 0
@@ -1970,21 +1972,20 @@ if [ $? -eq 0 ]; then
     fi
 fi
 
-echo_blue "========= 服务器基本信息 ========="
+echo_blue "========= 基本信息 ========="
 get_server_ip
 MEMINFO=$(free -h | grep Mem)
-echo_blue "========= 基本信息 ========="
 echo_info "服务器IP/名称" "${HOSTIP} / $(uname -n)"
 echo_info "内存大小/空闲" "$(echo $MEMINFO|awk '{print $2}') / $(echo $MEMINFO|awk '{print $4}')"
 echo_info "硬件平台/处理器类型/内核版本" "$(uname -i)($(uname -m)) / $(uname -p) / $(uname -r)"
-echo_info "CPU型号(物理/逻辑/每个核数)" "$(cat /proc/cpuinfo|grep 'model name'|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/　/g')($(cat /proc/cpuinfo|grep 'physical id'|sort|uniq|wc -l) / $(cat /proc/cpuinfo|grep 'processor'|wc -l) / $(cat /proc/cpuinfo|grep 'cpu cores'|uniq|awk '{print $4}'))"
+echo_info "CPU 型号(物理/逻辑/每个核数)" "$(cat /proc/cpuinfo|grep 'model name'|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/ /g') ($(cat /proc/cpuinfo|grep 'physical id'|sort|uniq|wc -l) / $(cat /proc/cpuinfo|grep 'processor'|wc -l) / $(cat /proc/cpuinfo|grep 'cpu cores'|uniq|awk '{print $4}'))"
 echo_info "服务器时间" "$(date '+%Y年%m月%d日 %H:%M:%S')"
 echo_info "防火墙状态" "$(firewall-cmd --stat)"
 echo ""
-echo_blue "========= 服务器硬盘信息 ========="
+echo_blue "========= 硬盘信息 ========="
 df -h
 echo ""
-echo_blue "=========  开始系统安装  ========="
+echo_blue "========= 系统安装 ========="
 
 if [[ ${MemTotal} -lt 1024 ]]; then
     echo_blue "内存过低，创建 SWAP 交换区..."
@@ -2037,19 +2038,23 @@ if [[ ${SETHOST} = "y" || ${SETHOST} = "Y" ]]; then
 fi
 
 echo_yellow "是否添加用户?"
-if [[ ${AUTOINSTALL} != "auto" ]]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
+    echo_blue "自动脚本跳过添加用户"
+else
     read -r -p "是(Y)/否(N): " ADDUSER
-fi
-if [[ ${ADDUSER} = "y" || ${ADDUSER} = "Y" ]]; then
+    if [[ ${ADDUSER} = "y" || ${ADDUSER} = "Y" ]]; then
     add_user
+fi
 fi
 
 echo_yellow "是否修改 SSH 配置?"
-if [[ $AUTOINSTALL != "auto" ]]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
+    echo_blue "自动脚本跳过修改 SSH 配置"
+else
     read -r -p "是(Y)/否(N): " SETSSH
-fi
-if [[ ${SETSSH} = "y" || ${SETSSH} = "Y" ]]; then
-    ssh_setting
+    if [[ ${SETSSH} = "y" || ${SETSSH} = "Y" ]]; then
+        ssh_setting
+    fi
 fi
 
 show_ver "cmake --version" "CMake"
