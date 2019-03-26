@@ -2,7 +2,6 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
-# todo 增加邮件发送设置
 AUTOINSTALL=$1
 STARTTIME=$(date +%s)
 CUR_DIR=$(cd $(dirname $BASH_SOURCE); pwd)
@@ -23,7 +22,7 @@ TOMCATVER=9.0.8
 get_server_ip() {
     local CURLTXT
     CURLTXT=$(curl httpbin.org/ip 2>/dev/null | grep origin | awk '{print $3}')
-    if [ ${CURLTXT} = "" ]; then
+    if [[ ${CURLTXT} = "" ]]; then
         HOSTIP=$(curl ifconfig.io 2>/dev/null)  # ifconfig.me ip.cip.cc api.ip.la
     else
         HOSTIP=${CURLTXT:0:-1}
@@ -44,33 +43,29 @@ disable_selinux() {
     fi
 }
 
-color_text() {
-    echo -e "\e[0;$2m$1\e[0m"
-}
-
 echo_red() {
-    color_text "$1" "31"
+    echo -e "\e[0;31m$1\e[0m"
 }
 
 echo_green() {
-    color_text "$1" "32"
+    echo -e "\e[0;32m$1\e[0m"
 }
 
 echo_yellow() {
-    color_text "$1" "33"
+    echo -e "\e[0;33m$1\e[0m"
 }
 
 echo_blue() {
-    color_text "$1" "34"
+    echo -e "\e[0;34m$1\e[0m"
 }
 
 echo_info() {
-    printf "%-s: \e[0;33m%-s\e[0m\n" $1 $2
+    printf "%-s: \e[0;33m%-s\e[0m\n" "$1" "$2"
 }
 
 ins_begin() {
     MODE=$1
-    color_text "[+] 安装 $1..." "34"
+    echo -e "\e[0;34m[+] 安装 $1...\e[0m"
 }
 
 ins_end() {
@@ -103,24 +98,24 @@ set_time_zone() {
 }
 
 set_host_name() {
-    echo_blue "[+] 修改 HostName..."
-    if [[ "$AUTOINSTALL" = "auto" ]]; then
+    echo_blue "[+] 修改 Hostname..."
+    if [[ $AUTOINSTALL = "auto" ]]; then
         HOST_NAME="myServer"
     else
-        read -r -p "请输入 HostName: " HOST_NAME
+        read -r -p "请输入 Hostname: " HOST_NAME
     fi
     echo "hostname=\"${HOST_NAME}\"" >> /etc/sysconfig/network
     echo "" > /etc/hostname
     echo "${HOST_NAME}" > /etc/hostname
     /etc/init.d/network restart
-    echo_green "[√] 修改 HostName 成功!"
+    echo_green "[√] 修改 Hostname 成功!"
 }
 
 add_user() {
     echo_blue "[+] 添加用户..."
     while :;do
         read -r -p "请输入用户名: " USERNAME
-        if [ "${USERNAME}" != "" ]; then
+        if [[ ${USERNAME} != "" ]]; then
             break
         else
             echo_red "用户名不能为空！"
@@ -128,7 +123,7 @@ add_user() {
     done
     while :;do
         read -r -p "请输入用户密码: " PASSWORD
-        if [ "${PASSWORD}" != "" ]; then
+        if [[ ${PASSWORD} != "" ]]; then
             break
         else
             echo_red "密码不能为空！"
@@ -171,7 +166,7 @@ ssh_setting() {
         echo "scp ${USERNAME}@${HOSTIP}:/home/${USERNAME}/.ssh/${FILENAME} ./"
         echo_yellow "是否下载成功?"
         read -r -p "是(Y)/否(N): " DOWNFILE
-        if [[ "${DOWNFILE}" = "y" || "${DOWNFILE}" = "Y" ]]; then
+        if [[ ${DOWNFILE} = "y" || ${DOWNFILE} = "Y" ]]; then
             # 是否允许使用基于密码的认证
             sed -i "s/^PasswordAuthentication [a-z]*/#&/g; 1,/^#PasswordAuthentication [a-z]*/{s/^#PasswordAuthentication [a-z]*/PasswordAuthentication no/g}" /etc/ssh/sshd_config
             sed -i "s|AuthorizedKeysFile.*|AuthorizedKeysFile .ssh/${FILENAME}.pub|g" /etc/ssh/sshd_config
@@ -182,7 +177,7 @@ ssh_setting() {
 
     echo_yellow "是否修改 SSH 默认端口(强烈建议修改，如不修改请直接回车)?"
     read -r -p "请输入 ssh 端口: " SSHPORT
-    if [[ -n "${SSHPORT}" && "${SSHPORT}" != "22" ]]; then
+    if [[ -n ${SSHPORT} && ${SSHPORT} != "22" ]]; then
         sed -i "s/^Port [0-9]*/#&/g; 1,/^#Port [0-9]*/{s/^#Port [0-9]*/Port ${SSHPORT}/g}" /etc/ssh/sshd_config
     fi
 
@@ -195,7 +190,7 @@ ssh_setting() {
 
     echo_yellow "是否允许 root 用户登录?"
     read -r -p "是(Y)/否(N): " ALLOWROOT
-    if [[ "${ALLOWROOT}" != "y" && "${ALLOWROOT}" != "Y" ]]; then
+    if [[ ${ALLOWROOT} != "y" && ${ALLOWROOT} != "Y" ]]; then
         # 禁止 ROOT 用户登录
         sed -i "s/^PermitRootLogin [a-z]*/#&/g; 1,/^#PermitRootLogin [a-z]*/{s/^#PermitRootLogin [a-z]*/PermitRootLogin no/g}" /etc/ssh/sshd_config
     fi
@@ -242,7 +237,7 @@ ssh_setting() {
     echo "" >> /etc/rsyslog.conf
     echo "auth,authpriv.*                                         /var/log/sftp.log" >> /etc/rsyslog.conf
 
-    if [[ "${SSHPORT}" != "22" ]]; then
+    if [[ ${SSHPORT} != "22" ]]; then
         # 如果 SELinux 启用下，需要额外针对 SELinux 添加 SSH 新端口权限
         if sestatus -v | grep enabled; then
             echo_blue "SELinux 启用，添加 SELinux 下的 SSH 新端口权限..."
@@ -262,7 +257,7 @@ ssh_setting() {
     service sshd restart
     service rsyslog restart
 
-    if [[ "${DOWNFILE}" = "y" || "${DOWNFILE}" = "Y" ]]; then
+    if [[ ${DOWNFILE} = "y" || ${DOWNFILE} = "Y" ]]; then
         echo_green "已设置证书登录(如设置了证书密码，还需要输入密码)，登录方式："
         echo "ssh -i ./${FILENAME} -p ${SSHPORT} ${USERNAME}@${HOSTIP}"
         echo_blue "请根据实际情况修改上面命令中 ./${FILENAME} 证书路径，并将证书文件设置 600 权限：chmod 600 ${FILENAME}"
@@ -285,11 +280,11 @@ ssh_setting() {
     echo_blue "[!] 请按照以上方式，打开一个新的 ssh 会话到服务器，看是否能连接成功"
     echo_yellow "是否连接成功?"
     read -r -p "成功(Y)/失败(N): " SSHSUSS
-    if [[ "${SSHSUSS}" = "n" || "${SSHSUSS}" = "N" ]]; then
+    if [[ ${SSHSUSS} = "n" || ${SSHSUSS} = "N" ]]; then
         if [ -n "${USERNAME}" ]; then
             echo_yellow "是否删除新添加的用户: ${USERNAME}?"
             read -r -p "是(Y)/否(N): " DELUSER
-            if [[ "${DELUSER}" = "y" || "${DELUSER}" = "Y" ]]; then
+            if [[ ${DELUSER} = "y" || ${DELUSER} = "Y" ]]; then
                 userdel "${USERNAME}"
                 rm -rf "/home/${USERNAME}"
                 echo_red "删除用户成功!"
@@ -333,7 +328,7 @@ install_zsh() {
     chsh -s /bin/zsh
 
     echo_yellow "是否安装 oh my zsh?"
-    if [[ "$AUTOINSTALL" = "auto" ]]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         INSOHMYZSH="Y"
     else
         read -r -p "是(Y)/否(N): " INSOHMYZSH
@@ -459,7 +454,7 @@ install_python3() {
     pip3 install --upgrade pip
 
     echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
-    if [[ "$AUTOINSTALL" = "auto" ]]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         DEFPYH="N"
     else
         read -r -p "是(Y)/否(N): " DEFPYH
@@ -474,7 +469,7 @@ install_python3() {
     fi
 
     ins_end "python3"
-    ins_end "pip3"
+    echo_green "\tpip版本：$(pip3 --version)"
     cd ..
 }
 
@@ -751,7 +746,7 @@ install_nodejs() {
     ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
     ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
     ins_end "node"
-    ins_end "npm"
+    echo_green "\tnpm版本：$(npm --version)"
 }
 
 do_query() {
@@ -767,16 +762,16 @@ install_mysql() {
     ins_begin "MySQL"
 
     echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
-    if [ "$AUTOINSTALL" = "auto" ]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         DBROOTPWD=""
     else
         read -r -p "密码: " DBROOTPWD
     fi
-    if [ "${DBROOTPWD}" = "" ]; then
+    if [[ ${DBROOTPWD} = "" ]]; then
         echo_red "没有输入密码，将采用默认密码。"
         DBROOTPWD="zsen@Club#$RANDOM"
     fi
-    echo_green "MySQL ROOT 用户密码为(请记下来): ${DBROOTPWD}"
+    echo_green "MySQL ROOT 用户密码(请记下来): ${DBROOTPWD}"
 
     rpm -qa | grep mysql
     rpm -e mysql mysql-libs --nodeps
@@ -1293,7 +1288,7 @@ EOF
     chkconfig --add nginx
     chkconfig nginx on
 
-    echo_green "[√] Nginx 安装成功！当前版本$(nginx -v)"
+    echo_green "[√] Nginx 安装成功！当前版本：$(nginx -v)"
     cd ..
 }
 
@@ -1399,7 +1394,11 @@ EOF
     fi
 
     echo_yellow "是否启用 Opcache? "
-    read -r -p "是(Y)/否(N): " OPCACHE
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
+        OPCACHE="Y"
+    else
+        read -r -p "是(Y)/否(N): " OPCACHE
+    fi
     if [[ ${OPCACHE} = "y" || ${OPCACHE} = "Y" ]]; then
         sed -i "s/;opcache.enable=1/opcache.enable=1/g" /usr/local/php/etc/php.ini
         sed -i "s/;opcache.enable_cli=1/opcache.enable_cli=1/g" /usr/local/php/etc/php.ini
@@ -1420,10 +1419,15 @@ EOF
     pecl config-set php_ini /usr/local/php/etc/php.ini
 
     echo_yellow "是否安装 Composer? "
-    read -r -p "是(Y)/否(N): " INSCPR
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
+        INSCPR="N"
+    else
+        read -r -p "是(Y)/否(N): " INSCPR
+    fi
     if [[ ${INSCPR} = "y" || ${INSCPR} = "Y" ]]; then
+        ins_begin "Composer"
         curl -sS --connect-timeout 30 -m 60 https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-        echo_blue "composer --version"
+        ins_end "composer"
     fi
 
     echo_blue "Creating new php-fpm configure file..."
@@ -1500,7 +1504,7 @@ EOF
     fi
 
     echo_yellow "是否安装 MySQL 扩展（不建议安装，请使用最新版如 MySQLi 扩展）? "
-    if [ "$AUTOINSTALL" = "auto" ]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         PHPMYSQL="N"
     else
         read -r -p "是(Y)/否(N): " PHPMYSQL
@@ -1527,16 +1531,16 @@ install_redis() {
     ins_begin "Redis"
 
     echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
-    if [ "$AUTOINSTALL" = "auto" ]; then
+    if [[ $AUTOINSTALL = "auto" ]]; then
         REDISPWD=""
     else
         read -r -p "密码: " REDISPWD
     fi
-    if [ "${REDISPWD}" = "" ]; then
+    if [[ ${REDISPWD} = "" ]]; then
         echo_red "没有输入密码，将采用默认密码。"
         REDISPWD=$(echo "zsenClub#$RANDOM" | md5sum | cut -d " " -f 1)
     fi
-    echo_green "Redis 安全密码为(请记下来): ${REDISPWD}"
+    echo_green "Redis 安全密码(请记下来): ${REDISPWD}"
 
     groupadd redis
     useradd -r -g redis -s /bin/false redis
@@ -1717,8 +1721,8 @@ install_tomcat() {
     sed -i 's#<Connector port="8080" protocol="HTTP/1.1"#<Connector port="8080" protocol="HTTP/1.1" maxThreads="1000"#g' /usr/local/tomcat/conf/server.xml
     sed -i 's#connectionTimeout="20000"#connectionTimeout="30000" minSpareThreads="100" maxSpareThreads="200" acceptCount="900"#g' /usr/local/tomcat/conf/server.xml
     # sed -i 's#appBase="webapps"#appBase="${INSHOME}/wwwroot"#g' /usr/local/tomcat/conf/server.xml
-    sed -i 's#directory="logs"#directory="${INSHOME}/wwwlogs"#g' /usr/local/tomcat/conf/server.xml
-    sed -i 's#prefix="localhost_access_log" suffix=".txt"#prefix="tomcat_access" suffix=".log"#g' /usr/local/tomcat/conf/server.xml
+    # sed -i 's#directory="logs"#directory="${INSHOME}/wwwlogs"#g' /usr/local/tomcat/conf/server.xml
+    # sed -i 's#prefix="localhost_access_log" suffix=".txt"#prefix="tomcat_access" suffix=".log"#g' /usr/local/tomcat/conf/server.xml
 
     cat > /etc/init.d/tomcat<<EOF
 #!/bin/bash
@@ -1852,49 +1856,37 @@ EOF
     chkconfig --add tomcat
     chkconfig tomcat on
 
-    echo_green "[√] Tomcat 安装成功！"
+    echo_green "[√] Tomcat 安装成功！当前版本：$(/usr/local/tomcat/bin/version.sh|grep 'Server version')"
 }
 
 register_management-tool() {
-    while :;do
-        echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
-        if [ "$AUTOINSTALL" = "auto" ]; then
-            MYNAME="pnmp"
-        else
+    echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
+        MYNAME="pnmp"
+    else
+        while :;do
             read -r -p "请输入管理工具名称: " MYNAME
-        fi
-        if [ -z "${MYNAME}" ]; then
-            MYNAME="pnmp"
-            break
-        else
-            command -v ${MYNAME} >/dev/null 2>&1
-            if [ $? -eq 0 ]; then
-                echo_red "存在相同的命令，请重新输入!"
-            else
+            if [ -z "${MYNAME}" ]; then
+                MYNAME="pnmp"
                 break
+            else
+                command -v ${MYNAME} >/dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    echo_red "存在相同的命令，请重新输入!"
+                else
+                    break
+                fi
             fi
-        fi
-    done
+        done
+    fi
     wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
     sed -i "s|/home|${INSHOME}|g" /usr/local/bin/${MYNAME}
     chmod +x /usr/local/bin/${MYNAME}
-
-    if [[ ${NGINX} = "y" || ${NGINX} = "Y" ]]; then
-        echo_yellow "是否要添加默认站点? "
-        if [ "$AUTOINSTALL" = "auto" ]; then
-            ADDHOST="N"
-        else
-            read -r -p "是(Y)/否(N): " ADDHOST
-        fi
-        if [[ ${ADDHOST} = "y" || ${ADDHOST} = "Y" ]]; then
-            ${MYNAME} vhost add
-        fi
-    fi
 }
 
 clean_install() {
     echo_yellow "是否清理安装文件?"
-    if [ "$AUTOINSTALL" = "auto" ]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         CLRANINS="Y"
     else
         read -r -p "全部(A)是(Y)/否(N): " CLRANINS
@@ -1928,6 +1920,8 @@ clean_install() {
     echo_blue "Redis 安全密码：${REDISPWD}"
     echo_red "请牢记以上密码！"
     echo " "
+    echo_blue "防火墙信息："
+    firewall-cmd --list-all
 
     ${MYNAME} status
     if [ -s /bin/ss ]; then
@@ -1937,6 +1931,18 @@ clean_install() {
     fi
     ENDTIME=$(date +%s)
     echo_blue "总共用时 $(((ENDTIME-STARTTIME)/60)) 分"
+
+    if [[ ${INSNGINX} = "y" || ${INSNGINX} = "Y" ]]; then
+        echo_yellow "是否要添加默认站点? "
+        if [[ ${AUTOINSTALL} = "auto" ]]; then
+            ADDHOST="N"
+        else
+            read -r -p "是(Y)/否(N): " ADDHOST
+        fi
+        if [[ ${ADDHOST} = "y" || ${ADDHOST} = "Y" ]]; then
+            ${MYNAME} vhost add
+        fi
+    fi
 }
 
 OSNAME=$(cat /etc/*-release | grep -i ^name | awk 'BEGIN{FS="=\""} {print $2}' | awk '{print $1}')
@@ -1955,13 +1961,11 @@ if [ $? -eq 0 ]; then
     SENCOND=$(df -h | grep vdb 2>&1)
     if [ -z "$SENCOND" ]; then
         echo_red "监测到服务器有第二磁盘且未挂载。建议可先退出程序，参照云服务商说明挂载磁盘后再运行本工具"
-        if [ "$AUTOINSTALL" = "auto" ]; then
-            EXITTOOLS="N"
-        else
+        if [[ ${AUTOINSTALL} != "auto" ]]; then
             read -r -p "是否退出(q),不退出请直接回车? " EXITTOOLS
-        fi
-        if [[ ${EXITTOOLS} = "q" || ${EXITTOOLS} = "Q" ]]; then
-            exit 0
+            if [[ ${EXITTOOLS} = "q" || ${EXITTOOLS} = "Q" ]]; then
+                exit 0
+            fi
         fi
     fi
 fi
@@ -1969,19 +1973,18 @@ fi
 echo_blue "========= 服务器基本信息 ========="
 get_server_ip
 MEMINFO=$(free -h | grep Mem)
-echo_info "服务器IP/名称" "${HOSTIP}　/　$(uname -n)"
-echo_info "处理器类型/内核版本" "$(uname -p)　/　$(uname -r)"
-echo_info "硬件平台/架构" "$(uname -i)　/　$(uname -m)"
-echo_info "内存大小/空闲" "$(echo $MEMINFO|awk '{print $2}')　/　$(echo $MEMINFO|awk '{print $4}')"
-echo_info "CPU型号" "$(cat /proc/cpuinfo|grep 'model name'|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/　/g')"
-echo_info "物理CPU数/每个核数" "$(cat /proc/cpuinfo|grep 'physical id'|sort|uniq|wc -l)　/　$(cat /proc/cpuinfo|grep 'cpu cores'|uniq|awk '{print $4}')"
-echo_info "逻辑CPU数" "$(cat /proc/cpuinfo|grep 'processor'|wc -l)"
-echo_info "服务器时间" "$(date '+%Y年%m月%d日　%H:%M:%S')"
+echo_blue "========= 基本信息 ========="
+echo_info "服务器IP/名称" "${HOSTIP} / $(uname -n)"
+echo_info "内存大小/空闲" "$(echo $MEMINFO|awk '{print $2}') / $(echo $MEMINFO|awk '{print $4}')"
+echo_info "硬件平台/处理器类型/内核版本" "$(uname -i)($(uname -m)) / $(uname -p) / $(uname -r)"
+echo_info "CPU型号(物理/逻辑/每个核数)" "$(cat /proc/cpuinfo|grep 'model name'|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/　/g')($(cat /proc/cpuinfo|grep 'physical id'|sort|uniq|wc -l) / $(cat /proc/cpuinfo|grep 'processor'|wc -l) / $(cat /proc/cpuinfo|grep 'cpu cores'|uniq|awk '{print $4}'))"
+echo_info "服务器时间" "$(date '+%Y年%m月%d日 %H:%M:%S')"
+echo_info "防火墙状态" "$(firewall-cmd --stat)"
 echo ""
 echo_blue "========= 服务器硬盘信息 ========="
 df -h
 echo ""
-echo_blue "========= 开始系统安装 ========="
+echo_blue "=========  开始系统安装  ========="
 
 if [[ ${MemTotal} -lt 1024 ]]; then
     echo_blue "内存过低，创建 SWAP 交换区..."
@@ -1993,8 +1996,8 @@ if [[ ${MemTotal} -lt 1024 ]]; then
 fi
 
 echo_yellow "是否调整时区?"
-if [ "$AUTOINSTALL" = "auto" ]; then
-    SETTIMEZONE="N"
+if [[ ${AUTOINSTALL} = "auto" ]]; then
+    SETTIMEZONE="Y"
 else
     read -r -p "是(Y)/否(N): " SETTIMEZONE
 fi
@@ -2003,9 +2006,7 @@ if [[ ${SETTIMEZONE} = "y" || ${SETTIMEZONE} = "Y" ]]; then
 fi
 
 echo_yellow "请输入安装目录（比如 /home 或 /data），默认 /data"
-if [ "$AUTOINSTALL" = "auto" ]; then
-    INSHOME="/data"
-else
+if [[ ${AUTOINSTALL} != "auto" ]]; then
     read -r -p "请输入: " INSHOME
 fi
 if [ -z "${INSHOME}" ]; then
@@ -2026,7 +2027,7 @@ yum upgrade -y
 yum install -y wget gcc make curl unzip
 
 echo_yellow "是否修改 HostName?"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     SETHOST="Y"
 else
     read -r -p "是(Y)/否(N): " SETHOST
@@ -2036,9 +2037,7 @@ if [[ ${SETHOST} = "y" || ${SETHOST} = "Y" ]]; then
 fi
 
 echo_yellow "是否添加用户?"
-if [ "$AUTOINSTALL" = "auto" ]; then
-    ADDUSER="N"
-else
+if [[ ${AUTOINSTALL} != "auto" ]]; then
     read -r -p "是(Y)/否(N): " ADDUSER
 fi
 if [[ ${ADDUSER} = "y" || ${ADDUSER} = "Y" ]]; then
@@ -2046,9 +2045,7 @@ if [[ ${ADDUSER} = "y" || ${ADDUSER} = "Y" ]]; then
 fi
 
 echo_yellow "是否修改 SSH 配置?"
-if [ "$AUTOINSTALL" = "auto" ]; then
-    SETSSH="N"
-else
+if [[ $AUTOINSTALL != "auto" ]]; then
     read -r -p "是(Y)/否(N): " SETSSH
 fi
 if [[ ${SETSSH} = "y" || ${SETSSH} = "Y" ]]; then
@@ -2056,8 +2053,8 @@ if [[ ${SETSSH} = "y" || ${SETSSH} = "Y" ]]; then
 fi
 
 show_ver "cmake --version" "CMake"
-if [[ $VER != "" ]]; then
-    if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${VER} != "" ]]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         INSCMAKE="Y"
     else
         read -r -p "是(Y)/否(N): " INSCMAKE
@@ -2070,8 +2067,8 @@ else
 fi
 
 show_ver "git --version" "Git"
-if [[ $VER != "" ]]; then
-    if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${VER} != "" ]]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         INSGIT="Y"
     else
         read -r -p "是(Y)/否(N): " INSGIT
@@ -2084,8 +2081,8 @@ else
 fi
 
 show_ver "zsh --version" "zsh"
-if [[ $VER != "" ]]; then
-    if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${VER} != "" ]]; then
+    if [[ ${AUTOINSTALL} = "auto" ]]; then
         INSZSH="Y"
     else
         read -r -p "是(Y)/否(N): " INSZSH
@@ -2098,7 +2095,7 @@ else
 fi
 
 show_ver "vim --version | head -n 1" "vim"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     INSVIM="Y"
 else
     read -r -p "是(Y)/否(N): " INSVIM
@@ -2108,7 +2105,7 @@ if [[ ${INSVIM} = "y" || ${INSVIM} = "Y" ]]; then
 fi
 
 show_ver "python3 --version" "Python3"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     INSPYTHON3="Y"
 else
     read -r -p "是(Y)/否(N): " INSPYTHON3
@@ -2119,7 +2116,7 @@ if [[ ${INSPYTHON3} = "y" || ${INSPYTHON3} = "Y" ]]; then
 fi
 
 show_ver "redis-server --version" "Redis"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     INSREDIS="Y"
 else
     read -r -p "是(Y)/否(N): " INSREDIS
@@ -2129,7 +2126,7 @@ if [[ ${INSREDIS} = "y" || ${INSREDIS} = "Y" ]]; then
 fi
 
 show_ver "php --version" "PHP"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     INSPHP="Y"
 else
     read -r -p "是(Y)/否(N): " INSPHP
@@ -2139,7 +2136,7 @@ if [[ ${INSPHP} = "y" || ${INSPHP} = "Y" ]]; then
 fi
 
 show_ver "mysql --version" "MySQL"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     INSMYSQL="Y"
 else
     read -r -p "是(Y)/否(N): " INSMYSQL
@@ -2149,7 +2146,7 @@ if [[ ${INSMYSQL} = "y" || ${INSMYSQL} = "Y" ]]; then
 fi
 
 show_ver "node --version" "Nodejs"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     INSNODEJS="Y"
 else
     read -r -p "是(Y)/否(N): " INSNODEJS
@@ -2159,7 +2156,7 @@ if [[ ${INSNODEJS} = "y" || ${INSNODEJS} = "Y" ]]; then
 fi
 
 show_ver "nginx -v" "Nginx"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     INSNGINX="Y"
 else
     read -r -p "是(Y)/否(N): " INSNGINX
@@ -2169,7 +2166,7 @@ if [[ ${INSNGINX} = "y" || ${INSNGINX} = "Y" ]]; then
 fi
 
 show_ver "java -version" "Tomcat"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     INSTOMCAT="Y"
 else
     read -r -p "是(Y)/否(N): " INSTOMCAT
@@ -2179,7 +2176,7 @@ if [[ ${INSTOMCAT} = "y" || ${INSTOMCAT} = "Y" ]]; then
 fi
 
 echo_yellow "是否启用防火墙(默认启用)?"
-if [ "$AUTOINSTALL" = "auto" ]; then
+if [[ ${AUTOINSTALL} = "auto" ]]; then
     FIREWALL="Y"
 else
     read -r -p "是(Y)/否(N): " FIREWALL
@@ -2189,7 +2186,6 @@ if [[ ${FIREWALL} = "n" || ${FIREWALL} = "N" ]]; then
     systemctl disable firewalld
 else
     systemctl enable firewalld
-    firewall-cmd --list-all
 fi
 
 register_management-tool
