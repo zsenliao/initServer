@@ -1990,11 +1990,12 @@ echo_blue "========= 系统安装 ========="
 
 if [[ ${MemTotal} -lt 1024 ]]; then
     echo_blue "内存过低，创建 SWAP 交换区..."
-    dd if=/dev/zero of=/dev/swap bs=1k count=2048000  # 获取要增加的2G的SWAP文件块
-    mkswap /dev/swap  # 创建SWAP文件
-    swapon /dev/swap  # 激活SWAP文件
+    dd if=/dev/zero of=/swapfile bs=1M count=2048  # 获取要增加的2G的SWAP文件块
+    chmod 0600 /swapfile
+    mkswap /swapfile  # 创建SWAP文件
+    swapon /swapfile  # 激活SWAP文件
     swapon -s  # 查看SWAP信息是否正确
-    # echo "/dev/swap swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
+    # echo "/swapfile swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
 fi
 
 echo_yellow "是否调整时区?"
