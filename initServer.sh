@@ -796,8 +796,15 @@ install_mysql() {
     mkdir -p "${INSHOME}/database/mysql"
     chown -R mysql:mysql "${INSHOME}/database/mysql"
 
-    cmake . -DDOWNLOAD_BOOST=1 -DWITH_BOOST=/usr/local/boost -DMYSQL_DATADIR="${INSHOME}"/database/mysql -DDEFAULT_CHARSET=utf8 -DDEFAULT_COLLATION=utf8_general_ci
-    make && make install
+    cmake . -DCMAKE_INSTALL_PREFIX=/usr/local/mysql \
+            -DDOWNLOAD_BOOST=1 \
+            -DWITH_BOOST=/usr/local/boost \
+            -DMYSQL_DATADIR="${INSHOME}"/database/mysql \
+            -DDEFAULT_CHARSET=utf8mb4 \
+            -DDEFAULT_COLLATION=utf8mb4_general_ci
+    # make && make install
+    make -j `grep processor /proc/cpuinfo | wc -l`
+    make install
 
     chgrp -R mysql /usr/local/mysql/.
     cp /usr/local/mysql/support-files/mysql.server /etc/init.d/mysqld
@@ -976,59 +983,13 @@ EOF
     /etc/init.d/mysqld start
 
     # 设置数据库密码
+    /usr/local/mysql/bin/mysqladmin -u root password "${DBROOTPWD}"
     # /usr/local/mysql/bin/mysql -e "grant all privileges on *.* to root@'127.0.0.1' identified by \"${DBROOTPWD}\" with grant option;"
     # /usr/local/mysql/bin/mysql -e "grant all privileges on *.* to root@'localhost' identified by \"${DBROOTPWD}\" with grant option;"
-
-    /usr/local/mysql/bin/mysqladmin -u root password "${DBROOTPWD}"
-    if [ $? -ne 0 ]; then
-        echo_red "failed, try other way..."
-        cat >~/.emptymy.cnf<<EOF
-[client]
-user=root
-password=''
-EOF
-        /usr/local/mysql/bin/mysql --defaults-file=~/.emptymy.cnf -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${DBROOTPWD}');"
-        [ $? -eq 0 ] && echo_green "Set password Sucessfully." || echo_red "Set password failed!"
-        rm -f ~/.emptymy.cnf
-    fi
-
-    /etc/init.d/mysqld restart
-
-    cat >~/.my.cnf<<EOF
-[client]
-user=root
-password='${DBROOTPWD}'
-EOF
-    chmod 600 ~/.my.cnf
-    do_query ""
-    if [ $? -eq 0 ]; then
-         echo_green "OK, MySQL root password correct."
-    fi
-    echo_blue "更新 ROOT 用户密码..."
-    do_query "UPDATE mysql.user SET authentication_string=PASSWORD('${DBROOTPWD}') WHERE User='root';"
-    [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
-    echo_blue "删除匿名用户..."
-    do_query "DELETE FROM mysql.user WHERE User='';"
-    do_query "DROP USER ''@'%';"
-    [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
-    echo_blue "禁用 ROOT 远程登录..."
-    do_query "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-    [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
-    echo_blue "删除测试数据库..."
-    do_query "DROP DATABASE test;"
-    [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
-    echo_blue "刷新数据库权限配置..."
-    do_query "FLUSH PRIVILEGES;"
-    [ $? -eq 0 ] && echo_green " ... Success." || echo_red " ... Failed!"
-
-    /etc/init.d/mysqld stop
-
-    if [ -s ~/.my.cnf ]; then
-        rm -f ~/.my.cnf
-    fi
-    if [ -s /tmp/.mysql.tmp ]; then
-        rm -f /tmp/.mysql.tmp
-    fi
+    # /usr/local/mysql/bin/mysql -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${DBROOTPWD}');"
+    # /usr/local/mysql/bin/mysql -e "UPDATE mysql.user SET authentication_string=PASSWORD('${DBROOTPWD}') WHERE User='root';"
+    
+    /usr/local/mysql/bin/mysql -e "FLUSH PRIVILEGES;" -uroot -p${DBROOTPWD}
 
     ins_end "mysql"
     cd ..
@@ -1298,7 +1259,7 @@ install_php() {
     rpm -qa | grep php
     rpm -e php-mysql php-cli php-gd php-common php --nodeps
     yum -y install libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libicu-devel
-    yum install libmcrypt libmcrypt-devel mcrypt mhash
+    yum install -y libmcrypt libmcrypt-devel mcrypt mhash
 
     wget_cache https://libzip.org/download/libzip-1.5.1.tar.gz libzip-1.5.1.tar.gz
     tar zxf libzip-1.5.1.tar.gz
@@ -2025,8 +1986,8 @@ systemctl start firewalld
 disable_selinux
 check_hosts
 
-yum update
-yum upgrade -y
+yum -y update
+yum -y upgrade
 yum install -y wget gcc make curl unzip
 
 echo_yellow "是否修改 HostName?"
