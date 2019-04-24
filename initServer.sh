@@ -88,6 +88,20 @@ show_ver() {
 wget_cache() {
     if [ ! -f "$2" ]; then
         wget -c "$1" -O "$2"
+
+        if [ $? -ne 0 ]; then
+            echo_red "$3 下载失败! 请输入新的地址后回车重新下载，或者输入 q 退出安装:"
+            echo_blue "当前下载地址: $1"
+            read -r -p "请输入新的下载地址(退出安装请输入 Q/q): " downloadUrl
+            if [[ ${downloadUrl} == 'q' || ${downloadUrl} == 'Q' || ${downloadUrl} == '' ]]; then
+                exit 1
+            fi
+            wget "${downloadUrl}" -O "$2"
+            if [ $? -ne 0 ]; then
+                echo_red "新输入的安装包地址下载失败，退出安装！"
+                exit 255
+            fi
+        fi
     fi
 }
 
@@ -310,7 +324,7 @@ install_git() {
     ins_begin "git"
     yum install -y autoconf zlib-devel curl-devel openssl-devel perl cpio expat-devel gettext-devel openssl zlib gcc perl-ExtUtils-MakeMaker
 
-    wget_cache https://github.com/git/git/archive/master.tar.gz git-master.tar.gz
+    wget_cache "https://github.com/git/git/archive/master.tar.gz" "git-master.tar.gz" "Git"
     tar xzf git-master.tar.gz
     cd git-master || exit
 
@@ -359,18 +373,14 @@ install_vim() {
     yum uninstall -y vim
     yum install -y ncurses-devel
 
-    wget_cache https://github.com/vim/vim/archive/master.tar.gz vim-master.tar.gz
-    if [ $? -eq 0 ]; then
-        yum remove -y vim
-        tar zxf vim-master.tar.gz
-        cd vim-master/src || exit
-        make && make install
+    wget_cache "https://github.com/vim/vim/archive/master.tar.gz" "vim-master.tar.gz" "Vim"
+    yum remove -y vim
+    tar zxf vim-master.tar.gz
+    cd vim-master/src || exit
+    make && make install
 
-        echo_green "vim 升级成功! 当前版本: $(vim --version | head -n 1)"
-        cd ../.. || exit
-    else
-        echo_red "[!] vim 安装源下载失败!"
-    fi
+    echo_green "vim 升级成功! 当前版本: $(vim --version | head -n 1)"
+    cd ../.. || exit
 
     echo_blue "[+] 安装 vim 插件..."
     curl https://raw.githubusercontent.com/wklken/vim-for-server/master/vimrc > ~/.vimrc
@@ -401,7 +411,7 @@ install_cmake() {
     yum remove -y cmake
     yum install -y gcc gcc-c++
 
-    wget_cache https://github.com/Kitware/CMake/releases/download/v${CMAKEVER}/cmake-${CMAKEVER}.tar.gz cmake-${CMAKEVER}.tar.gz
+    wget_cache "https://github.com/Kitware/CMake/releases/download/v${CMAKEVER}/cmake-${CMAKEVER}.tar.gz" "cmake-${CMAKEVER}.tar.gz" "Cmake"
     tar zxf cmake-${CMAKEVER}.tar.gz
     cd cmake-${CMAKEVER} || exit
 
@@ -433,7 +443,7 @@ install_python3() {
     ins_begin "Python3"
     yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
 
-    wget_cache https://www.python.org/ftp/python/${PYTHONVER}/Python-${PYTHONVER}.tgz Python-${PYTHONVER}.tgz
+    wget_cache "https://www.python.org/ftp/python/${PYTHONVER}/Python-${PYTHONVER}.tgz" "Python-${PYTHONVER}.tgz" "Python3"
     tar xf Python-${PYTHONVER}.tgz
     cd Python-${PYTHONVER} || exit
 
@@ -738,7 +748,7 @@ install_ikev2() {
 
 install_nodejs() {
     ins_begin "Nodejs"
-    wget_cache https://nodejs.org/dist/v${NODEJSVER}/node-v${NODEJSVER}-linux-x64.tar.xz node-v${NODEJSVER}-linux-x64.tar.xz
+    wget_cache "https://nodejs.org/dist/v${NODEJSVER}/node-v${NODEJSVER}-linux-x64.tar.xz" "node-v${NODEJSVER}-linux-x64.tar.xz" "Nodejs"
     tar -xf node-v${NODEJSVER}-linux-x64.tar.xz
     mv node-v${NODEJSVER}-linux-x64 /usr/local/node
     chown root:root -R /usr/local
@@ -781,12 +791,12 @@ install_mysql() {
     rm -rf "${INSHOME}/database/mysql"
     rm -rf /usr/local/mysql
 
-    wget_cache http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz boost_1_59_0.tar.gz
+    wget_cache "http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz" "boost_1_59_0.tar.gz" "Boost"
     tar zxf boost_1_59_0.tar.gz
     mv boost_1_59_0 /usr/local/boost
     chown root:root -R /usr/local/boost
 
-    wget_cache https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQLVER}.tar.gz mysql-${MYSQLVER}.tar.gz
+    wget_cache "https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQLVER}.tar.gz" "mysql-${MYSQLVER}.tar.gz" "MySQL"
     tar zxf mysql-${MYSQLVER}.tar.gz
     cd mysql-${MYSQLVER} || exit
 
@@ -998,7 +1008,7 @@ EOF
 install_start-stop-daemon() {
     ins_begin "start-stop-daemon"
     yum install -y ncurses-devel
-    wget_cache http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${DAEMONVER}.tar.xz start-stop-daemon_${DAEMONVER}.tar.xz
+    wget_cache "http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${DAEMONVER}.tar.xz" "start-stop-daemon_${DAEMONVER}.tar.xz" "start-stop-daemon"
     mkdir start-stop-daemon_${DAEMONVER}
     tar -xf start-stop-daemon_${DAEMONVER}.tar.xz -C ./start-stop-daemon_${DAEMONVER} --strip-components 1
     cd start-stop-daemon_${DAEMONVER} || exit
@@ -1025,11 +1035,11 @@ install_nginx() {
     git submodule update --init
     cd ..
 
-    wget_cache https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz OpenSSL_1_1_1.tar.gz
+    wget_cache "https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz" "OpenSSL_1_1_1.tar.gz" "OpenSSL"
     tar xzf OpenSSL_1_1_1.tar.gz
     mv openssl-OpenSSL_1_1_1 openssl
 
-    wget_cache https://nginx.org/download/nginx-${NGINXVER}.tar.gz nginx-${NGINXVER}.tar.gz
+    wget_cache "https://nginx.org/download/nginx-${NGINXVER}.tar.gz" "nginx-${NGINXVER}.tar.gz" "Nginx"
     tar zxf nginx-${NGINXVER}.tar.gz
     cd nginx-${NGINXVER} || exit
     sed -i "s/${NGINXVER}/8.8.8.8/g" src/core/nginx.h
@@ -1261,7 +1271,7 @@ install_php() {
     yum -y install libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libicu-devel
     yum install -y libmcrypt libmcrypt-devel mcrypt mhash
 
-    wget_cache https://libzip.org/download/libzip-1.5.1.tar.gz libzip-1.5.1.tar.gz
+    wget_cache "https://libzip.org/download/libzip-1.5.1.tar.gz" "libzip-1.5.1.tar.gz" "libzip"
     tar zxf libzip-1.5.1.tar.gz
     cd libzip-1.5.1 || exit
     mkdir build
@@ -1278,7 +1288,7 @@ install_php() {
 EOF
     ldconfig
 
-    wget_cache http://cn2.php.net/get/php-${PHPVER}.tar.gz/from/this/mirror php-${PHPVER}.tar.gz
+    wget_cache "http://cn2.php.net/get/php-${PHPVER}.tar.gz/from/this/mirror" "php-${PHPVER}.tar.gz" "PHP"
     tar zxf php-${PHPVER}.tar.gz
     cd php-${PHPVER} || exit
     ./configure --prefix=/usr/local/php \
@@ -1448,9 +1458,9 @@ EOF
 
     cd ..
 
-    wget_cache http://pecl.php.net/get/mcrypt-${MCRYPTVER}.tgz mcrypt-${MCRYPTVER}.tgz
+    wget_cache "http://pecl.php.net/get/mcrypt-${MCRYPTVER}.tgz" "mcrypt-${MCRYPTVER}.tgz" "mcrypt"
     tar xf mcrypt-${MCRYPTVER}.tgz
-    cd mcrypt-${MCRYPTVER}
+    cd mcrypt-${MCRYPTVER} || exit
     phpize
     ./configure --with-php-config=/usr/local/php/bin/php-config
     make && make install
@@ -1458,9 +1468,9 @@ EOF
     cd ..
 
     if [ -s /usr/local/redis/bin/redis-server ]; then
-        wget_cache https://github.com/phpredis/phpredis/archive/master.zip phpredis-master.zip
+        wget_cache "https://github.com/phpredis/phpredis/archive/master.zip" "phpredis-master.zip" "PHPRedis"
         unzip phpredis-master.zip
-        cd phpredis-master
+        cd phpredis-master || exit
         phpize
         ./configure --with-php-config=/usr/local/php/bin/php-config
         make && make install
@@ -1513,7 +1523,7 @@ install_redis() {
     mkdir -p "${INSHOME}/database/redis"
     chown -R redis:redis "${INSHOME}/database/redis"
 
-    wget_cache http://download.redis.io/releases/redis-${REDISVER}.tar.gz redis-${REDISVER}.tar.gz
+    wget_cache "http://download.redis.io/releases/redis-${REDISVER}.tar.gz" "redis-${REDISVER}.tar.gz" "Redis"
     tar zxf redis-${REDISVER}.tar.gz
     cd redis-${REDISVER} || exit
     make && make PREFIX=/usr/local/redis install
@@ -1663,11 +1673,11 @@ install_tomcat() {
     ins_end "java"
 
     ins_begin "Tomcat"
-    wget_cache https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCATVER}/bin/apache-tomcat-${TOMCATVER}.tar.gz apache-tomcat-${TOMCATVER}.tar.gz
+    wget_cache "https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCATVER}/bin/apache-tomcat-${TOMCATVER}.tar.gz" "apache-tomcat-${TOMCATVER}.tar.gz" "Tomcat"
     tar zxf apache-tomcat-${TOMCATVER}.tar.gz
-    cd apache-tomcat-${TOMCATVER}/bin
+    cd apache-tomcat-${TOMCATVER}/bin || exit
     tar zxf commons-daemon-native.tar.gz
-    cd commons-daemon-1.1.0-native-src/unix
+    cd commons-daemon-1.1.0-native-src/unix || exit
     ./configure
     make
     mv jsvc ../../
