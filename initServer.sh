@@ -22,7 +22,7 @@ TOMCATVER=9.0.8
 get_server_ip() {
     local CURLTXT
     CURLTXT=$(curl httpbin.org/ip 2>/dev/null | grep origin | awk '{print $3}')
-    if [[ ${CURLTXT} = "" ]]; then
+    if [[ ${CURLTXT} == "" ]]; then
         HOSTIP=$(curl ifconfig.io 2>/dev/null)  # ifconfig.me ip.cip.cc api.ip.la
     else
         HOSTIP=${CURLTXT:0:-1}
@@ -113,7 +113,7 @@ set_time_zone() {
 
 set_host_name() {
     echo_blue "[+] 修改 Hostname..."
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         HOST_NAME="myServer"
     else
         read -r -p "请输入 Hostname: " HOST_NAME
@@ -129,7 +129,7 @@ add_user() {
     echo_blue "[+] 添加用户..."
     while :;do
         read -r -p "请输入用户名: " USERNAME
-        if [[ ${USERNAME} != "" ]]; then
+        if [[ "${USERNAME}" != "" ]]; then
             break
         else
             echo_red "用户名不能为空！"
@@ -137,7 +137,7 @@ add_user() {
     done
     while :;do
         read -r -p "请输入用户密码: " PASSWORD
-        if [[ ${PASSWORD} != "" ]]; then
+        if [[ "${PASSWORD}" != "" ]]; then
             break
         else
             echo_red "密码不能为空！"
@@ -180,7 +180,7 @@ ssh_setting() {
         echo "scp ${USERNAME}@${HOSTIP}:/home/${USERNAME}/.ssh/${FILENAME} ./"
         echo_yellow "是否下载成功?"
         read -r -p "是(Y)/否(N): " DOWNFILE
-        if [[ ${DOWNFILE} = "y" || ${DOWNFILE} = "Y" ]]; then
+        if [[ ${DOWNFILE} == "y" || ${DOWNFILE} == "Y" ]]; then
             # 是否允许使用基于密码的认证
             sed -i "s/^PasswordAuthentication [a-z]*/#&/g; 1,/^#PasswordAuthentication [a-z]*/{s/^#PasswordAuthentication [a-z]*/PasswordAuthentication no/g}" /etc/ssh/sshd_config
             sed -i "s|AuthorizedKeysFile.*|AuthorizedKeysFile .ssh/${FILENAME}.pub|g" /etc/ssh/sshd_config
@@ -211,7 +211,7 @@ ssh_setting() {
 
     echo_yellow "限制错误登录次数?"
     read -r -p "请输入(默认3次): " MaxAuthTries
-    if [[ ${MaxAuthTries} = "" ]]; then
+    if [[ ${MaxAuthTries} == "" ]]; then
         MaxAuthTries=3
     fi
     sed -i "s/^MaxAuthTries [0-9]*/#&/g; 1,/^#MaxAuthTries [0-9]*/{s/^#MaxAuthTries [0-9]*/MaxAuthTries ${MaxAuthTries}/g}" /etc/ssh/sshd_config
@@ -271,7 +271,7 @@ ssh_setting() {
     service sshd restart
     service rsyslog restart
 
-    if [[ ${DOWNFILE} = "y" || ${DOWNFILE} = "Y" ]]; then
+    if [[ ${DOWNFILE} == "y" || ${DOWNFILE} == "Y" ]]; then
         echo_green "已设置证书登录(如设置了证书密码，还需要输入密码)，登录方式："
         echo "ssh -i ./${FILENAME} -p ${SSHPORT} ${USERNAME}@${HOSTIP}"
         echo_blue "请根据实际情况修改上面命令中 ./${FILENAME} 证书路径，并将证书文件设置 600 权限：chmod 600 ${FILENAME}"
@@ -294,11 +294,11 @@ ssh_setting() {
     echo_blue "[!] 请按照以上方式，打开一个新的 ssh 会话到服务器，看是否能连接成功"
     echo_yellow "是否连接成功?"
     read -r -p "成功(Y)/失败(N): " SSHSUSS
-    if [[ ${SSHSUSS} = "n" || ${SSHSUSS} = "N" ]]; then
+    if [[ ${SSHSUSS} == "n" || ${SSHSUSS} == "N" ]]; then
         if [ -n "${USERNAME}" ]; then
             echo_yellow "是否删除新添加的用户: ${USERNAME}?"
             read -r -p "是(Y)/否(N): " DELUSER
-            if [[ ${DELUSER} = "y" || ${DELUSER} = "Y" ]]; then
+            if [[ ${DELUSER} == "y" || ${DELUSER} == "Y" ]]; then
                 userdel "${USERNAME}"
                 rm -rf "/home/${USERNAME}"
                 echo_red "删除用户成功!"
@@ -342,12 +342,12 @@ install_zsh() {
     chsh -s /bin/zsh
 
     echo_yellow "是否安装 oh my zsh?"
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         INSOHMYZSH="Y"
     else
         read -r -p "是(Y)/否(N): " INSOHMYZSH
     fi
-    if [[ ${INSOHMYZSH} = "y" || ${INSOHMYZSH} = "Y" ]]; then
+    if [[ ${INSOHMYZSH} == "y" || ${INSOHMYZSH} == "Y" ]]; then
         echo_blue "[+] 安装 oh my zsh..."
         wget https://github.com/robbyrussell/oh-my-zsh/raw/master/tools/install.sh -O - | sh
         sed -i "s/ZSH_THEME=\"robbyrussell\"/ZSH_THEME=\"ys\"/g" ~/.zshrc
@@ -464,11 +464,11 @@ install_python3() {
     pip3 install --upgrade pip
 
     echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         echo_blue "自动安装，不设置 Python3 为默认环境"
     else
         read -r -p "是(Y)/否(N): " DEFPYH
-        if [[ ${DEFPYH} = "y" || ${DEFPYH} = "Y" ]]; then
+        if [[ ${DEFPYH} == "y" || ${DEFPYH} == "Y" ]]; then
             # rm -r /usr/bin/python
             ln -sf /usr/local/bin/python3 /usr/local/bin/python
             sed -i "s/python/python2/" /usr/bin/yum
@@ -693,7 +693,7 @@ install_ikev2() {
     else
         echo_yellow "请选择证书验证方式"
         read -r -p "dns 或 web: " ACMETYPE
-        if [[ ${ACMETYPE} = "dns" || ${ACMETYPE} = "DNS" ]]; then
+        if [[ ${ACMETYPE} == "dns" || ${ACMETYPE} == "DNS" ]]; then
             echo_yellow "你选择的是 DNS 方式验证，需要你的 DNS 服务商:"
             echo_blue "1: CloudFlare"
             echo_blue "2: DNSPod (Default)"
@@ -772,12 +772,12 @@ install_mysql() {
     ins_begin "MySQL"
 
     echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         DBROOTPWD=""
     else
         read -r -p "密码: " DBROOTPWD
     fi
-    if [[ ${DBROOTPWD} = "" ]]; then
+    if [[ ${DBROOTPWD} == "" ]]; then
         echo_red "没有输入密码，将采用默认密码。"
         DBROOTPWD="zsen@Club#$RANDOM"
     fi
@@ -1365,12 +1365,12 @@ EOF
     fi
 
     echo_yellow "是否启用 Opcache? "
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         OPCACHE="Y"
     else
         read -r -p "是(Y)/否(N): " OPCACHE
     fi
-    if [[ ${OPCACHE} = "y" || ${OPCACHE} = "Y" ]]; then
+    if [[ ${OPCACHE} == "y" || ${OPCACHE} == "Y" ]]; then
         sed -i "s/;opcache.enable=1/opcache.enable=1/g" /usr/local/php/etc/php.ini
         sed -i "s/;opcache.enable_cli=1/opcache.enable_cli=1/g" /usr/local/php/etc/php.ini
         sed -i "s/;opcache.memory_consumption=128/opcache.memory_consumption=192/g" /usr/local/php/etc/php.ini
@@ -1380,12 +1380,12 @@ EOF
         echo "zend_extension=opcache.so" >> /usr/local/php/etc/php.ini
 
         echo_yellow "当前服务器是否生产服务器（如选择是，每次更新 PHP 代码后请重启 php-fpm）? "
-        if [[ ${AUTOINSTALL} = "auto" ]]; then
+        if [[ ${AUTOINSTALL} == "auto" ]]; then
             PHPPROD="Y"
         else
             read -r -p "是(Y)/否(N): " PHPPROD
         fi
-        if [[ ${PHPPROD} = "y" || ${PHPPROD} = "Y" ]]; then
+        if [[ ${PHPPROD} == "y" || ${PHPPROD} == "Y" ]]; then
             sed -i "s/;opcache.validate_timestamps=.*/opcache.validate_timestamps=0/g" /usr/local/php/etc/php.ini
         fi
     fi
@@ -1394,11 +1394,11 @@ EOF
     pecl config-set php_ini /usr/local/php/etc/php.ini
 
     echo_yellow "是否安装 Composer? "
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         echo_blue "自动安装，跳过安装 Composer"
     else
         read -r -p "是(Y)/否(N): " INSCPR
-        if [[ ${INSCPR} = "y" || ${INSCPR} = "Y" ]]; then
+        if [[ ${INSCPR} == "y" || ${INSCPR} == "Y" ]]; then
             ins_begin "Composer"
             curl -sS --connect-timeout 30 -m 60 https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
             ins_end "composer"
@@ -1479,11 +1479,11 @@ EOF
     fi
 
     echo_yellow "是否安装 MySQL 扩展（不建议安装，请使用最新版如 MySQLi 扩展）? "
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         echo_blue "自动安装，跳过安装 MySQL 扩展"
     else
         read -r -p "是(Y)/否(N): " PHPMYSQL
-        if [[ ${PHPMYSQL} = "y" || ${PHPMYSQL} = "Y" ]]; then
+        if [[ ${PHPMYSQL} == "y" || ${PHPMYSQL} == "Y" ]]; then
             wget -c --no-cookie "http://git.php.net/?p=pecl/database/mysql.git;a=snapshot;h=647c933b6cc8f3e6ce8a466824c79143a98ee151;sf=tgz" -O php-mysql.tar.gz
             mkdir ./php-mysql
             tar xzf php-mysql.tar.gz -C ./php-mysql --strip-components 1
@@ -1506,12 +1506,12 @@ install_redis() {
     ins_begin "Redis"
 
     echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         REDISPWD=""
     else
         read -r -p "密码: " REDISPWD
     fi
-    if [[ ${REDISPWD} = "" ]]; then
+    if [[ ${REDISPWD} == "" ]]; then
         echo_red "没有输入密码，将采用默认密码。"
         REDISPWD=$(echo "zsenClub#$RANDOM" | md5sum | cut -d " " -f 1)
     fi
@@ -1831,9 +1831,109 @@ EOF
     echo_green "[√] Tomcat 安装成功！当前版本：$(/usr/local/tomcat/bin/version.sh|grep 'Server version')"
 }
 
+setting_sendmail_conf() {
+    # 修改默认邮件传输代理：alternatives --config mta
+    # 查看邮件传输代理是否修改成功：alternatives --display mta
+
+    echo_yellow "请输入邮箱 smtp 信息:"
+    read -r -p "smtp 地址: " SMTPHOST
+    read -r -p "smtp 端口: " SMTPPORT
+    read -r -p "smtp 用户名: " SMTPUSER
+    echo_red "请注意：部分邮箱（如QQ邮箱/网易邮箱，以及开启了「安全登录」的腾讯企业邮箱）的 smtp 密码"
+    echo_red "　　　　是邮箱管理设置中的「客户端授权密码」或「客户端专用密码」，不是网页版的登录密码！"
+    read -r -p "smtp 密码: " SMTPPASS
+
+    echo_yellow "请选择邮件发送程序: "
+    echo_blue "1: 系统默认"
+    echo_blue "2: msmtp(建议)"
+    read -r -p "请输入对应数字(1 or 2):" MAILCONF
+    yum -y remove postfix
+    yum -y remove sendmail
+
+    echo_yellow "是否安装 Mutt 发送邮件客户端? "
+    read -r -p "是(Y)/否(N): " INSMUTT
+    if [[ ${INSMUTT} == "y" || ${INSMUTT} == "Y" ]]; then
+        yum install -y mutt
+    fi
+    
+    case "${MAILCONF}" in
+    1)
+        echo '' >> /etc/mail.rc
+        echo '# Set SMTP conf' >> /etc/mail.rc
+        echo "set from=${SMTPUSER}" >> /etc/mail.rc
+        echo "set smtp=smtps://${SMTPHOST}:${SMTPPORT}" >> /etc/mail.rc
+        echo "set smtp-auth-user=${SMTPUSER}" >> /etc/mail.rc
+        echo "set smtp-auth-password=${SMTPPASS}" >> /etc/mail.rc
+        echo "set smtp-auth=login" >> /etc/mail.rc
+        echo "set ssl-verify=ignore" >> /etc/mail.rc
+        echo "set nss-config-dir=/etc/pki/nssdb" >> /etc/mail.rc
+
+        mkdir -p /root/.certs/
+        echo -n | openssl s_client -connect "${SMTPHOST}:${SMTPPORT}" | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > ~/.certs/smtp.crt
+        certutil -A -n "GeoTrust SSL CA" -t "C,," -d ~/.certs -i ~/.certs/smtp.crt
+        certutil -A -n "GeoTrust Global CA" -t "C,," -d ~/.certs -i ~/.certs/smtp.crt
+        certutil -L -d /root/.certs
+        sed -i 's#/etc/pki/nssdb#/root/.certs#g' /etc/mail.rc
+
+        if [[ ${INSMUTT} == "y" || ${INSMUTT} == "Y" ]]; then
+            smtp_user=${SMTPUSER/@/\\@}
+            cat >> /etc/Muttrc.local<<EOF
+# Connection
+set ssl_starttls=yes
+set ssl_force_tls=yes
+set ssl_use_sslv3=yes
+set timeout=60
+set smtp_authenticators="login"
+set smtp_url="smtps://${smtp_user}@${SMTPHOST}:${SMTPPORT}"
+#set content_type="text/html"
+
+# Outgoing
+#set realname="zhang san"
+set from="${SMTPUSER}"
+set smtp_pass="${SMTPPASS}"
+EOF
+        fi
+
+        ;;
+    *)
+        yum install -y msmtp
+
+cat > /etc/msmtprc<<EOF
+defaults
+logfile ${INSHOME}/wwwlogs/msmtp_sendmail.log
+
+# You can select this account by using "-a gmail" in your command line.
+account       acc1
+tls           on
+tls_certcheck off
+tls_starttls  off
+protocol      smtp
+auth          login
+host          ${SMTPHOST}
+port          ${SMTPPORT}
+from          ${SMTPUSER}
+user          ${SMTPUSER}
+password      ${SMTPPASS}
+
+# If you don't use any "-a" parameter in your command line, the default account will be used.
+account default: acc1
+EOF
+
+        chmod 0600 /etc/msmtprc
+        echo '' >> /etc/mail.rc
+        echo 'set sendmail=/usr/bin/msmtp' >> /etc/mail.rc
+
+        if [[ ${INSMUTT} == "y" || ${INSMUTT} == "Y" ]]; then
+            echo '' >> /etc/Muttrc.local
+            echo 'set sendmail=/usr/bin/msmtp' >> /etc/Muttrc.local
+        fi
+        ;;
+    esac
+}
+
 register_management-tool() {
     echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         MYNAME="pnmp"
     else
         while :;do
@@ -1858,12 +1958,12 @@ register_management-tool() {
 
 clean_install() {
     echo_yellow "是否清理安装文件?"
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         CLRANINS="Y"
     else
         read -r -p "全部(A)是(Y)/否(N): " CLRANINS
     fi
-    if [[ ${CLRANINS} = "y" || ${CLRANINS} = "Y" ]]; then
+    if [[ ${CLRANINS} == "y" || ${CLRANINS} == "Y" ]]; then
         echo_blue "正在清理安装编译文件..."
         for deldir in "${CUR_DIR}"/src/*
         do
@@ -1872,7 +1972,7 @@ clean_install() {
             fi
         done
         echo_blue "安装编译文件清理完成。"
-    elif [[ ${CLRANINS} = "a" || ${CLRANINS} = "A" ]]; then
+    elif [[ ${CLRANINS} == "a" || ${CLRANINS} == "A" ]]; then
         echo_blue "正在清理全部文件..."
         rm -rf "${CUR_DIR}"/src
         echo_blue "安装文件清理完成。"
@@ -1904,13 +2004,13 @@ clean_install() {
     ENDTIME=$(date +%s)
     echo_blue "总共用时 $(((ENDTIME-STARTTIME)/60)) 分"
 
-    if [[ ${INSNGINX} = "y" || ${INSNGINX} = "Y" ]]; then
+    if [[ ${INSNGINX} == "y" || ${INSNGINX} == "Y" ]]; then
         echo_yellow "是否要添加默认站点? "
-        if [[ ${AUTOINSTALL} = "auto" ]]; then
+        if [[ ${AUTOINSTALL} == "auto" ]]; then
             echo_blue "自动化脚本不添加默认站点"
         else
             read -r -p "是(Y)/否(N): " ADDHOST
-            if [[ ${ADDHOST} = "y" || ${ADDHOST} = "Y" ]]; then
+            if [[ ${ADDHOST} == "y" || ${ADDHOST} == "Y" ]]; then
                 ${MYNAME} vhost add
             fi
         fi
@@ -1933,11 +2033,11 @@ if [ $? -eq 0 ]; then
     SENCOND=$(df -h | grep vdb 2>&1)
     if [ -z "$SENCOND" ]; then
         echo_red "监测到服务器有第二磁盘且未挂载。建议可先退出程序，参照云服务商说明挂载磁盘后再运行本工具"
-        if [[ ${AUTOINSTALL} = "auto" ]]; then
+        if [[ ${AUTOINSTALL} == "auto" ]]; then
             echo_blue "自动化脚本不退出"
         else
             read -r -p "是否退出(q),不退出请直接回车? " EXITTOOLS
-            if [[ ${EXITTOOLS} = "q" || ${EXITTOOLS} = "Q" ]]; then
+            if [[ ${EXITTOOLS} == "q" || ${EXITTOOLS} == "Q" ]]; then
                 exit 0
             fi
         fi
@@ -1970,12 +2070,12 @@ if [[ ${MemTotal} -lt 1024 ]]; then
 fi
 
 echo_yellow "是否调整时区?"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     SETTIMEZONE="Y"
 else
     read -r -p "是(Y)/否(N): " SETTIMEZONE
 fi
-if [[ ${SETTIMEZONE} = "y" || ${SETTIMEZONE} = "Y" ]]; then
+if [[ ${SETTIMEZONE} == "y" || ${SETTIMEZONE} == "Y" ]]; then
     set_time_zone
 fi
 
@@ -2001,43 +2101,43 @@ yum -y upgrade
 yum install -y wget gcc make curl unzip
 
 echo_yellow "是否修改 HostName?"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     SETHOST="Y"
 else
     read -r -p "是(Y)/否(N): " SETHOST
 fi
-if [[ ${SETHOST} = "y" || ${SETHOST} = "Y" ]]; then
+if [[ ${SETHOST} == "y" || ${SETHOST} == "Y" ]]; then
     set_host_name
 fi
 
 echo_yellow "是否添加用户?"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     echo_blue "自动脚本跳过添加用户"
 else
     read -r -p "是(Y)/否(N): " ADDUSER
-    if [[ ${ADDUSER} = "y" || ${ADDUSER} = "Y" ]]; then
+    if [[ ${ADDUSER} == "y" || ${ADDUSER} == "Y" ]]; then
     add_user
 fi
 fi
 
 echo_yellow "是否修改 SSH 配置?"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     echo_blue "自动脚本跳过修改 SSH 配置"
 else
     read -r -p "是(Y)/否(N): " SETSSH
-    if [[ ${SETSSH} = "y" || ${SETSSH} = "Y" ]]; then
+    if [[ ${SETSSH} == "y" || ${SETSSH} == "Y" ]]; then
         ssh_setting
     fi
 fi
 
 show_ver "cmake --version" "CMake"
 if [[ ${VER} != "" ]]; then
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         INSCMAKE="Y"
     else
         read -r -p "是(Y)/否(N): " INSCMAKE
     fi
-    if [[ ${INSCMAKE} = "y" || ${INSCMAKE} = "Y" ]]; then
+    if [[ ${INSCMAKE} == "y" || ${INSCMAKE} == "Y" ]]; then
         install_cmake
     fi
 else
@@ -2046,12 +2146,12 @@ fi
 
 show_ver "git --version" "Git"
 if [[ ${VER} != "" ]]; then
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         INSGIT="Y"
     else
         read -r -p "是(Y)/否(N): " INSGIT
     fi
-    if [[ ${INSGIT} = "y" || ${INSGIT} = "Y" ]]; then
+    if [[ ${INSGIT} == "y" || ${INSGIT} == "Y" ]]; then
         install_git
     fi
 else
@@ -2060,12 +2160,12 @@ fi
 
 show_ver "zsh --version" "zsh"
 if [[ ${VER} != "" ]]; then
-    if [[ ${AUTOINSTALL} = "auto" ]]; then
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
         INSZSH="Y"
     else
         read -r -p "是(Y)/否(N): " INSZSH
     fi
-    if [[ ${INSZSH} = "y" || ${INSZSH} = "Y" ]]; then
+    if [[ ${INSZSH} == "y" || ${INSZSH} == "Y" ]]; then
         install_zsh
     fi
 else
@@ -2073,93 +2173,104 @@ else
 fi
 
 show_ver "vim --version | head -n 1" "vim"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     INSVIM="Y"
 else
     read -r -p "是(Y)/否(N): " INSVIM
 fi
-if [[ ${INSVIM} = "y" || ${INSVIM} = "Y" ]]; then
+if [[ ${INSVIM} == "y" || ${INSVIM} == "Y" ]]; then
     install_vim
 fi
 
 show_ver "python3 --version" "Python3"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     INSPYTHON3="Y"
 else
     read -r -p "是(Y)/否(N): " INSPYTHON3
 fi
-if [[ ${INSPYTHON3} = "y" || ${INSPYTHON3} = "Y" ]]; then
+if [[ ${INSPYTHON3} == "y" || ${INSPYTHON3} == "Y" ]]; then
     install_python3
     install_uwsgi
 fi
 
 show_ver "redis-server --version" "Redis"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     INSREDIS="Y"
 else
     read -r -p "是(Y)/否(N): " INSREDIS
 fi
-if [[ ${INSREDIS} = "y" || ${INSREDIS} = "Y" ]]; then
+if [[ ${INSREDIS} == "y" || ${INSREDIS} == "Y" ]]; then
     install_redis
 fi
 
 show_ver "php --version" "PHP"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     INSPHP="Y"
 else
     read -r -p "是(Y)/否(N): " INSPHP
 fi
-if [[ ${INSPHP} = "y" || ${INSPHP} = "Y" ]]; then
+if [[ ${INSPHP} == "y" || ${INSPHP} == "Y" ]]; then
     install_php
 fi
 
 show_ver "mysql --version" "MySQL"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     INSMYSQL="Y"
 else
     read -r -p "是(Y)/否(N): " INSMYSQL
 fi
-if [[ ${INSMYSQL} = "y" || ${INSMYSQL} = "Y" ]]; then
+if [[ ${INSMYSQL} == "y" || ${INSMYSQL} == "Y" ]]; then
     install_mysql
 fi
 
 show_ver "node --version" "Nodejs"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     INSNODEJS="Y"
 else
     read -r -p "是(Y)/否(N): " INSNODEJS
 fi
-if [[ ${INSNODEJS} = "y" || ${INSNODEJS} = "Y" ]]; then
+if [[ ${INSNODEJS} == "y" || ${INSNODEJS} == "Y" ]]; then
     install_nodejs
 fi
 
 show_ver "nginx -v" "Nginx"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     INSNGINX="Y"
 else
     read -r -p "是(Y)/否(N): " INSNGINX
 fi
-if [[ ${INSNGINX} = "y" || ${INSNGINX} = "Y" ]]; then
+if [[ ${INSNGINX} == "y" || ${INSNGINX} == "Y" ]]; then
     install_nginx
 fi
 
 show_ver "java -version" "Tomcat"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     INSTOMCAT="Y"
 else
     read -r -p "是(Y)/否(N): " INSTOMCAT
 fi
-if [[ ${INSTOMCAT} = "y" || ${INSTOMCAT} = "Y" ]]; then
+if [[ ${INSTOMCAT} == "y" || ${INSTOMCAT} == "Y" ]]; then
     install_tomcat
 fi
 
+echo_yellow "是否设置 SMTP 发送邮件?"
+echo_blue "提示：阿里云/腾讯云服务器封掉了 25 端口，默认方式发送邮件不成功(可以申请解封)"
+if [[ ${AUTOINSTALL} == "auto" ]]; then
+    SETSMTP="N"
+else
+    read -r -p "是(Y)/否(N): " SETSMTP
+fi
+if [[ ${SETSMTP} == "y" || ${SETSMTP} == "y" ]]; then
+    setting_sendmail_conf
+fi
+
 echo_yellow "是否启用防火墙(默认启用)?"
-if [[ ${AUTOINSTALL} = "auto" ]]; then
+if [[ ${AUTOINSTALL} == "auto" ]]; then
     FIREWALL="Y"
 else
     read -r -p "是(Y)/否(N): " FIREWALL
 fi
-if [[ ${FIREWALL} = "n" || ${FIREWALL} = "N" ]]; then
+if [[ ${FIREWALL} == "n" || ${FIREWALL} == "N" ]]; then
     systemctl stop firewalld
     systemctl disable firewalld
 else
