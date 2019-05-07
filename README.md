@@ -52,12 +52,12 @@
 ## TODO
 * [x] 站点目录自定义更改
 * [x] 管理工具自定义命名
-* [ ] 选择安装是否 [shellMonitor](https://github.com/zsenliao/shellMonitor)
+* [x] 选择安装是否 [shellMonitor](https://github.com/zsenliao/shellMonitor)
 * [x] 增加域名证书到期时间检测
 * [x] 域名证书续期
 * [x] 增加自定义命名管理工具时的名称检测
 * [x] 增加管理工具的升级功能
 * [x] 修复新增域名时申请正式后自动更新失败的 BUG
 * [ ] 跨域设置中，增加多域名的处理
-* [ ] 增加邮件发送处理
+* [x] 增加邮件发送处理
 * [x] 增加 Tomcat 安装

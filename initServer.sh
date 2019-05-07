@@ -759,12 +759,6 @@ install_nodejs() {
     echo_green "\tnpm版本：$(npm --version)"
 }
 
-do_query() {
-    echo "$1" > /tmp/.mysql.tmp
-    /usr/local/mysql/bin/mysql --defaults-file=~/.my.cnf < /tmp/.mysql.tmp
-    return $?
-}
-
 install_mysql() {
     # wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
     # rpm -Uvh mysql57-community-release-el7-11.noarch.rpm
@@ -998,8 +992,23 @@ EOF
     # /usr/local/mysql/bin/mysql -e "grant all privileges on *.* to root@'localhost' identified by \"${DBROOTPWD}\" with grant option;"
     # /usr/local/mysql/bin/mysql -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${DBROOTPWD}');"
     # /usr/local/mysql/bin/mysql -e "UPDATE mysql.user SET authentication_string=PASSWORD('${DBROOTPWD}') WHERE User='root';"
-    
     /usr/local/mysql/bin/mysql -e "FLUSH PRIVILEGES;" -uroot -p${DBROOTPWD}
+
+    echo_yellow "是否生成 ~/.my.cnf（如选择是，在命令行可以不用密码进入MySQL）? "
+    if [[ ${AUTOINSTALL} == "auto" ]]; then
+        ADDMYCNF="N"
+    else
+        read -r -p "是(Y)/否(N): " ADDMYCNF
+    fi
+    if [[ ${ADDMYCNF} == "y" || ${ADDMYCNF} == "Y" ]]; then
+        cat > /root/.my.cnf << EOF
+[client]
+host     = localhost
+user     = root
+password = ${DBROOTPWD}
+EOF
+        chmod 0400 /root/.my.cnf
+    fi
 
     ins_end "mysql"
     cd ..
@@ -1929,6 +1938,32 @@ EOF
         fi
         ;;
     esac
+}
+
+install_shellMonitor() {
+    if [ -d /usr/local/shellMonitor ]; then
+        echo_yellow "已存在 shellMonitor, 是否覆盖安装?"
+        read -r -p "是(Y)/否(N): " REINSMONITOR
+        if [[ ${REINSMONITOR} == "y" || ${REINSMONITOR} == "Y" ]]; then
+            cp /usr/local/shellMonitor/config.sh ./
+            echo_blue "删除旧 shellMonitor..."
+            rm -rf /usr/local/shellMonitor
+            sed -i '/shellMonitor/d' /var/spool/cron/root
+        else
+            echo_blue "退出安装 shellMonitor!"
+            return
+        fi
+    fi
+    wget_cache "https://github.com/zsenliao/shellMonitor/archive/master.zip" "shellMonitor.zip" "shellMonitor"
+    unzip shellMonitor.zip
+    mv shellMonitor-master /usr/local/shellMonitor
+    chmod +x /usr/local/shellMonitor/*.sh
+    if [ -f ./config.sh ]; then
+        echo_blue "当前 shellMonitor 配置为:"
+        cat ./config.sh
+    fi
+    /usr/local/shellMonitor/main.sh init
+    echo_green "[!] shellMonitor 安装成功!"
 }
 
 register_management-tool() {
