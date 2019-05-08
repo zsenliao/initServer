@@ -6,6 +6,7 @@ AUTOINSTALL=$1
 STARTTIME=$(date +%s)
 CUR_DIR=$(cd $(dirname $BASH_SOURCE); pwd)
 MemTotal=$(free -m | grep Mem | awk '{print  $2}')
+CPUS=$(grep processor /proc/cpuinfo | wc -l)
 MODE=''
 
 CMAKEVER=3.13.2
@@ -190,7 +191,7 @@ ssh_setting() {
     fi
 
     echo_yellow "是否修改 SSH 默认端口(强烈建议修改，如不修改请直接回车)?"
-    read -r -p "请输入 ssh 端口: " SSHPORT
+    read -r -p "请输入 ssh 端口(数字): " SSHPORT
     if [[ -n ${SSHPORT} && ${SSHPORT} != "22" ]]; then
         sed -i "s/^Port [0-9]*/#&/g; 1,/^#Port [0-9]*/{s/^#Port [0-9]*/Port ${SSHPORT}/g}" /etc/ssh/sshd_config
     fi
@@ -275,8 +276,9 @@ ssh_setting() {
         echo_green "已设置证书登录(如设置了证书密码，还需要输入密码)，登录方式："
         echo "ssh -i ./${FILENAME} -p ${SSHPORT} ${USERNAME}@${HOSTIP}"
         echo_blue "请根据实际情况修改上面命令中 ./${FILENAME} 证书路径，并将证书文件设置 600 权限：chmod 600 ${FILENAME}"
-        echo_red "请注意：如果本地有多个证书，以上命令会连接失败！需要在 .ssh/config 文件中添加 Host 将服务器与证书对应"
-        echo_blue "参考以下方式添加 .ssh/config 内容："
+        echo_red "请注意：如果客户机 ~/.ssh 目录下有多个证书，以上命令会连接失败！"
+        echo_red "需要在 ~/.ssh/config 文件中添加 Host 将服务器与证书对应(Windows 系统未验证)"
+        echo_green "参考以下方式添加 ~/.ssh/config 内容："
         echo "Host myServer"
         echo "    HostName ${HOSTIP}"
         echo "    User ${USERNAME}"
@@ -284,7 +286,7 @@ ssh_setting() {
         echo "    PreferredAuthentications publickey"
         echo "    IdentityFile ./${FILENAME}"
         echo "    IdentitiesOnly yes"
-        echo_blue "同样请根据实际情况修改上面命令中 ./${FILENAME} 证书路径，然后通过以下命令连接："
+        echo_green "同样请根据实际情况修改上面命令中 ./${FILENAME} 证书路径，然后通过以下命令连接："
         echo "ssh myServer"
     else
         echo_green "已设置用户密码登录(登录时需输入用户密码 ${PASSWORD})。登录方式："
@@ -416,7 +418,7 @@ install_cmake() {
     cd cmake-${CMAKEVER} || exit
 
     ./bootstrap
-    make && make install
+    make -j ${CPUS} && make install
 
     ins_end "cmake"
     cd ..
@@ -448,7 +450,7 @@ install_python3() {
     cd Python-${PYTHONVER} || exit
 
     ./configure --prefix=/usr/local/python3.7 --enable-optimizations
-    make && make install
+    make -j ${CPUS} && make install
 
     ln -sf /usr/local/python3.7/bin/python3 /usr/local/bin/python3
     ln -sf /usr/local/python3.7/bin/2to3 /usr/local/bin/2to3
@@ -807,7 +809,7 @@ install_mysql() {
             -DDEFAULT_CHARSET=utf8mb4 \
             -DDEFAULT_COLLATION=utf8mb4_general_ci
     # make && make install
-    make -j `grep processor /proc/cpuinfo | wc -l`
+    make -j ${CPUS}
     make install
 
     chgrp -R mysql /usr/local/mysql/.
@@ -1344,7 +1346,7 @@ EOF
                 --enable-session
 
     #make ZEND_EXTRA_LIBS='-liconv' && make install
-    make && make install
+    make -j ${CPUS} && make install
 
     ln -sf /usr/local/php/bin/php /usr/local/bin/php
     ln -sf /usr/local/php/bin/phpize /usr/local/bin/phpize
@@ -1864,7 +1866,7 @@ setting_sendmail_conf() {
     if [[ ${INSMUTT} == "y" || ${INSMUTT} == "Y" ]]; then
         yum install -y mutt
     fi
-    
+
     case "${MAILCONF}" in
     1)
         echo '' >> /etc/mail.rc
@@ -2046,6 +2048,7 @@ clean_install() {
         else
             read -r -p "是(Y)/否(N): " ADDHOST
             if [[ ${ADDHOST} == "y" || ${ADDHOST} == "Y" ]]; then
+                ${MYNAME} restart
                 ${MYNAME} vhost add
             fi
         fi
@@ -2085,7 +2088,7 @@ MEMINFO=$(free -h | grep Mem)
 echo_info "服务器IP/名称" "${HOSTIP} / $(uname -n)"
 echo_info "内存大小/空闲" "$(echo $MEMINFO|awk '{print $2}') / $(echo $MEMINFO|awk '{print $4}')"
 echo_info "硬件平台/处理器类型/内核版本" "$(uname -i)($(uname -m)) / $(uname -p) / $(uname -r)"
-echo_info "CPU 型号(物理/逻辑/每个核数)" "$(cat /proc/cpuinfo|grep 'model name'|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/ /g') ($(cat /proc/cpuinfo|grep 'physical id'|sort|uniq|wc -l) / $(cat /proc/cpuinfo|grep 'processor'|wc -l) / $(cat /proc/cpuinfo|grep 'cpu cores'|uniq|awk '{print $4}'))"
+echo_info "CPU 型号(物理/逻辑/每个核数)" "$(grep 'model name' /proc/cpuinfo|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/ /g') ($(grep 'physical id' /proc/cpuinfo|sort|uniq|wc -l) / ${CPUS} / $(grep 'cpu cores' /proc/cpuinfo|uniq|awk '{print $4}'))"
 echo_info "服务器时间" "$(date '+%Y年%m月%d日 %H:%M:%S')"
 echo_info "防火墙状态" "$(firewall-cmd --stat)"
 echo ""
