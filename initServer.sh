@@ -2299,6 +2299,16 @@ if [[ ${SETSMTP} == "y" || ${SETSMTP} == "y" ]]; then
     setting_sendmail_conf
 fi
 
+echo_yellow "是否安装 shellMonitor 系统监控工具?"
+if [[ ${AUTOINSTALL} == "auto" ]]; then
+    INSMONITOR="N"
+else
+    read -r -p "是(Y)/否(N): " INSMONITOR
+fi
+if [[ ${INSMONITOR} == "y" || ${INSMONITOR} == "y" ]]; then
+    install_shellMonitor
+fi
+
 echo_yellow "是否启用防火墙(默认启用)?"
 if [[ ${AUTOINSTALL} == "auto" ]]; then
     FIREWALL="Y"
