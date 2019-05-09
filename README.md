@@ -5,6 +5,8 @@
 
 `curl https://raw.githubusercontent.com/zsenliao/initServer/master/initServer.sh -O`
 
+> 也可以通过在命令末尾添加 ` | tee install-info.log` 的方式来记录安装日志
+
 ## 主要功能
 
 * 添加用户及 SSH 配置。可选择添加用户，以及是否自定义配置 `SSH`。如选择是，按照提示「傻瓜」式操作就好。
@@ -61,3 +63,6 @@
 * [ ] 跨域设置中，增加多域名的处理
 * [x] 增加邮件发送处理
 * [x] 增加 Tomcat 安装
+* [ ] 安装失败日志记录
+* [ ] 自动获取IP失败，提示手动输入
+* [ ] 自定义升级服务版本
