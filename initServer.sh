@@ -2,29 +2,36 @@
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 
-AUTOINSTALL=$1
+INSSTACK=$1
 STARTTIME=$(date +%s)
 CUR_DIR=$(cd $(dirname $BASH_SOURCE); pwd)
 MemTotal=$(free -m | grep Mem | awk '{print  $2}')
 CPUS=$(grep processor /proc/cpuinfo | wc -l)
-MODE=''
 
-CMAKEVER=3.13.2
-PYTHONVER=3.7.2
-NODEJSVER=10.15.3
-DAEMONVER=1.17.27
-NGINXVER=1.15.6
-PHPVER=7.2.16
-MCRYPTVER=1.0.2
-REDISVER=5.0.3
-MYSQLVER=5.7.21
-TOMCATVER=9.0.8
+CMAKE_VER=3.13.2
+PYTHON_VER=3.7.2
+NODEJS_VER=10.15.3
+STARTSTOPDAEMON_VER=1.17.27
+NGINX_VER=1.15.6
+PHP_VER=7.2.16
+MCRYPT_VER=1.0.2
+REDIS_VER=5.0.3
+MYSQL_VER=5.7.21
+TOMCAT_VER=9.0.8
 
 get_server_ip() {
     local CURLTXT
     CURLTXT=$(curl httpbin.org/ip 2>/dev/null | grep origin | awk '{print $3}')
     if [[ ${CURLTXT} == "" ]]; then
-        HOSTIP=$(curl ifconfig.io 2>/dev/null)  # ifconfig.me ip.cip.cc api.ip.la
+        for url in "ifconfig.io" "ifconfig.me" "ip.cip.cc" "api.ip.la"; do
+            HOSTIP=$(curl $url 2>/dev/null)
+            if [[ ${HOSTIP} != "" && ${#HOSTIP} -le 15 ]]; then
+                break
+            fi
+        done
+        if [[ ${HOSTIP} == "" || ${#HOSTIP} -gt 15 ]]; then
+            HOSTIP="服务器IP获取失败"
+        fi
     else
         HOSTIP=${CURLTXT:0:-1}
     fi
@@ -65,43 +72,48 @@ echo_info() {
 }
 
 ins_begin() {
-    MODE=$1
-    echo -e "\e[0;34m[+] 安装 $1...\e[0m"
+    echo -e "\e[0;34m[+] 开始安装 ${1-$MODULE_NAME}...\e[0m"
+}
+
+get_module_ver() {
+    MODULE_CLI=$(echo ${1-$MODULE_NAME} | tr 'A-Z' 'a-z')
+
+    if [[ $MODULE_CLI == "nginx" ]]; then
+        command -v nginx 1>/dev/null && MODULE_VER=$(cat /usr/local/nginx/version.txt 2>/dev/null || echo "8.8.8.8") || MODULE_VER=""
+    elif [[ $MODULE_CLI == "vim" ]]; then
+        MODULE_VER=$(echo $(vim --version 2>/dev/null) | awk -F ')' '{print $1}')
+    else
+        MODULE_VER=$(${MODULE_CLI} --version 2>/dev/null)
+    fi
 }
 
 ins_end() {
-    local version
-    version=$($1 --version)
-    [ $? -eq 0 ] && echo_green "[√] $MODE 安装成功! 当前版本：$version" || echo_red "[x] $MODE 安装失败! "
+    get_module_ver $1
+    if [ -n "${MODULE_VER}" ]; then
+        echo_green "[√] ${1-$MODULE_NAME} 安装成功! 当前版本：${MODULE_VER}"
+    else
+        echo_red "[x] ${1-$MODULE_NAME} 安装失败! "
+    fi
 }
 
 show_ver() {
-    VER=$($1 2>&1)
-    if [ $? -eq 0 ]; then
-        echo_green "当前已安装 $2, 版本：${VER}"
+    get_module_ver
+    if [ -n "${MODULE_VER}" ]; then
+        echo_green "当前已安装 ${MODULE_NAME}, 版本：${MODULE_VER}"
         echo_yellow "是否重新编译安装?"
     else
-        VER=''
-        echo_yellow "是否安装 $2?"
+        echo_yellow "是否安装 ${MODULE_NAME}?"
     fi
 }
 
 wget_cache() {
     if [ ! -f "$2" ]; then
-        wget -c "$1" -O "$2"
-
-        if [ $? -ne 0 ]; then
-            echo_red "$3 下载失败! 请输入新的地址后回车重新下载，或者输入 q 退出安装:"
+        if ! wget -c "$1" -O "$2"; then
+            rm -f "$2"
+            echo_red "${$3-$MODULE_NAME} 下载失败! 请输入新的地址后回车重新下载:"
             echo_blue "当前下载地址: $1"
-            read -r -p "请输入新的下载地址(退出安装请输入 Q/q): " downloadUrl
-            if [[ ${downloadUrl} == 'q' || ${downloadUrl} == 'Q' || ${downloadUrl} == '' ]]; then
-                exit 1
-            fi
+            read -r -p "请输入新的下载地址: " downloadUrl
             wget "${downloadUrl}" -O "$2"
-            if [ $? -ne 0 ]; then
-                echo_red "新输入的安装包地址下载失败，退出安装！"
-                exit 255
-            fi
         fi
     fi
 }
@@ -114,7 +126,7 @@ set_time_zone() {
 
 set_host_name() {
     echo_blue "[+] 修改 Hostname..."
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         HOST_NAME="myServer"
     else
         read -r -p "请输入 Hostname: " HOST_NAME
@@ -153,7 +165,7 @@ add_user() {
     mkdir -p "/home/${USERNAME}/.ssh"
     chown -R "${USERNAME}":"${USERNAME}" "/home/${USERNAME}"
     chmod -R 755 "/home/${USERNAME}"
-    cd "/home/${USERNAME}/.ssh" || exit
+    cd "/home/${USERNAME}/.ssh"
     if [ -z "${FILENAME}" ]; then
         FILENAME=${USERNAME}
     fi
@@ -161,7 +173,7 @@ add_user() {
     echo_yellow "请输入证书密码(如不要密码请直接回车)"
     su "${USERNAME}" -c "ssh-keygen -t rsa -f ${FILENAME}"
 
-    cd "${CUR_DIR}/src" || exit
+    cd "${CUR_DIR}/src"
 
     chown -R "${USERNAME}":"${USERNAME}" "/home/${USERNAME}"
     chmod -R 755 "/home/${USERNAME}"
@@ -323,29 +335,32 @@ ssh_setting() {
 }
 
 install_git() {
-    ins_begin "git"
+    ins_begin
     yum install -y autoconf zlib-devel curl-devel openssl-devel perl cpio expat-devel gettext-devel openssl zlib gcc perl-ExtUtils-MakeMaker
 
-    wget_cache "https://github.com/git/git/archive/master.tar.gz" "git-master.tar.gz" "Git"
-    tar xzf git-master.tar.gz
-    cd git-master || exit
+    wget_cache "https://github.com/git/git/archive/master.tar.gz" "git-master.tar.gz"
+    if ! tar xzf git-master.tar.gz; then
+        echo "${MODULE_NAME} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
 
+    cd git-master
     make configure
     ./configure --prefix=/usr/local
-    make && make install
-
-    ins_end "git"
+    make -j ${CPUS} && make install || echo "${MODULE_NAME} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
     cd ..
+
+    ins_end
 }
 
 install_zsh() {
-    ins_begin "zsh"
+    ins_begin
     yum install -y zsh
     chsh -s /bin/zsh
 
     echo_yellow "是否安装 oh my zsh?"
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
-        INSOHMYZSH="Y"
+    if [[ ${INSSTACK} == "auto" ]]; then
+        INSOHMYZSH="N"
     else
         read -r -p "是(Y)/否(N): " INSOHMYZSH
     fi
@@ -363,26 +378,27 @@ install_zsh() {
     echo 'alias lbyt="ls -alht"' >> ~/.zshrc
     echo 'alias cls="clear"' >> ~/.zshrc
     echo 'alias grep="grep --color"' >> ~/.zshrc
-
     echo "export PATH=/usr/local/bin:\$PATH" >> ~/.zshrc
-    echo "export PATH=/usr/local/bin:\$PATH" >> ~/.bashrc
 
-    ins_end "zsh"
+    ins_end
 }
 
 install_vim() {
-    echo_blue "[+] 升级 vim..."
+    echo_blue "[+] 升级 ${MODULE_NAME}..."
+
+    wget_cache "https://github.com/vim/vim/archive/master.tar.gz" "vim-master.tar.gz"
+    if ! tar zxf vim-master.tar.gz; then
+        echo "${MODULE_NAME} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
+
     yum uninstall -y vim
+    yum remove -y vim
     yum install -y ncurses-devel
 
-    wget_cache "https://github.com/vim/vim/archive/master.tar.gz" "vim-master.tar.gz" "Vim"
-    yum remove -y vim
-    tar zxf vim-master.tar.gz
-    cd vim-master/src || exit
-    make && make install
-
-    echo_green "vim 升级成功! 当前版本: $(vim --version | head -n 1)"
-    cd ../.. || exit
+    cd vim-master/src
+    make && make install || echo "${MODULE_NAME} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    cd ../..
 
     echo_blue "[+] 安装 vim 插件..."
     curl https://raw.githubusercontent.com/wklken/vim-for-server/master/vimrc > ~/.vimrc
@@ -405,23 +421,29 @@ install_vim() {
 
     wget -O ~/.vim/syntax/python.wim https://www.vim.org/scripts/download_script.php?src_id=21056
     echo "au BufNewFile,BufRead *.py setf python" >> ~/.vim/filetype.vim
+
+    ins_end
 }
 
 install_cmake() {
-    ins_begin "CMake"
+    ins_begin
+
+    wget_cache "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VER}/cmake-${CMAKE_VER}.tar.gz" "cmake-${CMAKE_VER}.tar.gz"
+    if ! tar zxf cmake-${CMAKE_VER}.tar.gz; then
+        echo "${MODULE_NAME}-${CMAKE_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
+
     rpm -q cmake
     yum remove -y cmake
     yum install -y gcc gcc-c++
 
-    wget_cache "https://github.com/Kitware/CMake/releases/download/v${CMAKEVER}/cmake-${CMAKEVER}.tar.gz" "cmake-${CMAKEVER}.tar.gz" "Cmake"
-    tar zxf cmake-${CMAKEVER}.tar.gz
-    cd cmake-${CMAKEVER} || exit
-
+    cd cmake-${CMAKE_VER}
     ./bootstrap
-    make -j ${CPUS} && make install
-
-    ins_end "cmake"
+    make -j ${CPUS} && make install || echo "${MODULE_NAME}-${CMAKE_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
     cd ..
+
+    ins_end
 }
 
 install_acme() {
@@ -442,15 +464,19 @@ install_acme() {
 }
 
 install_python3() {
-    ins_begin "Python3"
+    ins_begin
     yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
 
-    wget_cache "https://www.python.org/ftp/python/${PYTHONVER}/Python-${PYTHONVER}.tgz" "Python-${PYTHONVER}.tgz" "Python3"
-    tar xf Python-${PYTHONVER}.tgz
-    cd Python-${PYTHONVER} || exit
+    wget_cache "https://www.python.org/ftp/python/${PYTHON_VER}/Python-${PYTHON_VER}.tgz" "Python-${PYTHON_VER}.tgz"
+    if ! tar xf Python-${PYTHON_VER}.tgz; then
+        echo "${MODULE_NAME}-${PYTHON_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
 
+    cd Python-${PYTHON_VER}
     ./configure --prefix=/usr/local/python3.7 --enable-optimizations
-    make -j ${CPUS} && make install
+    make -j ${CPUS} && make install || echo "${MODULE_NAME}-${PYTHON_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    cd ..
 
     ln -sf /usr/local/python3.7/bin/python3 /usr/local/bin/python3
     ln -sf /usr/local/python3.7/bin/2to3 /usr/local/bin/2to3
@@ -460,13 +486,12 @@ install_python3() {
     ln -sf /usr/local/python3.7/bin/python3-config /usr/local/bin/python3-config
     ln -sf /usr/local/python3.7/bin/pyvenv /usr/local/bin/pyvenv
 
-    curl -O https://bootstrap.pypa.io/get-pip.py
-    python3 get-pip.py
+    curl https://bootstrap.pypa.io/get-pip.py | python3
     ln -sf /usr/local/python3.7/bin/pip3 /usr/local/bin/pip3
     pip3 install --upgrade pip
 
     echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         echo_blue "自动安装，不设置 Python3 为默认环境"
     else
         read -r -p "是(Y)/否(N): " DEFPYH
@@ -480,20 +505,18 @@ install_python3() {
         fi
     fi
 
-    ins_end "python3"
+    ins_end
     echo_green "\tpip版本：$(pip3 --version)"
-    cd ..
 }
 
 install_uwsgi() {
-    ins_begin "uwsgi"
+    ins_begin
     pip3 install uwsgi
     ln -sf /usr/local/python3.7/bin/uwsgi /usr/local/bin/uwsgi
 
-    mkdir -p "${INSHOME}/wwwconf/uwsgi"
+    TMPCONFDIR=${INSHOME}/wwwconf/uwsgi
+    mkdir -p ${TMPCONFDIR}
     chown -R nobody:nobody "${INSHOME}/wwwconf"
-
-    TMPCONFDIR=${INSHOME}/wwwconf/uwsgi/
 
     cat > /etc/init.d/uwsgi<<EOF
 #!/bin/bash
@@ -519,7 +542,7 @@ install_uwsgi() {
 DESC="Python uWSGI"
 NAME=uwsgi
 DAEMON=/usr/local/python3.7/bin/uwsgi
-CONFIGDIR=${INSHOME}/wwwconf/uwsgi
+CONFIGDIR=${TMPCONFDIR}
 PIDDIR=/tmp
 
 log_success_msg(){
@@ -542,7 +565,7 @@ start() {
         # for i in \${CONFIGDIR}/*.ini
         for i in \${iniList[@]}
         do
-            SiteName=\${i:${#TMPCONFDIR}:0-4}
+            SiteName=\${i:${#TMPCONFDIR}+1:0-4}
             pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
             if [ ! -z "\$pid" ]; then
                 log_warning_msg "        \${SiteName}: " "Already Running"
@@ -565,7 +588,7 @@ stop() {
         echo "Stopping \$DESC: "
         for i in \${iniList[@]}
         do
-            SiteName=\${i:${#TMPCONFDIR}:0-4}
+            SiteName=\${i:${#TMPCONFDIR}+1:0-4}
             pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
             if [ ! -z "\$pid" ]; then
                 \$DAEMON --stop \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
@@ -588,7 +611,7 @@ reload() {
         echo "Reloading \$DESC: "
         for i in \${iniList[@]}
         do
-            SiteName=\${i:${#TMPCONFDIR}:0-4}
+            SiteName=\${i:${#TMPCONFDIR}+1:0-4}
             pid=\$(ps aux | grep \$i | grep -v grep | awk '{ print \$13 }' | sort -mu 2>/dev/null)
             if [ ! -z "\$pid" ]; then
                 \$DAEMON --reload \${PIDDIR}/\${SiteName}.uwsgi.pid 2>/dev/null
@@ -610,7 +633,7 @@ status() {
         echo "\${DESC} application status: "
         for i in \${pid[@]}
         do
-            log_success_msg "        \${i:${#TMPCONFDIR}:0-4}: " "Running"
+            log_success_msg "        \${i:${#TMPCONFDIR}+1:0-4}: " "Running"
         done
     else
         log_warning_msg "\${DESC} application status: " "All Application Stopped"
@@ -663,7 +686,7 @@ EOF
     chkconfig uwsgi on
     service uwsgi start
 
-    ins_end "uwsgi"
+    ins_end
 }
 
 install_ikev2() {
@@ -749,15 +772,20 @@ install_ikev2() {
 }  # TODO
 
 install_nodejs() {
-    ins_begin "Nodejs"
-    wget_cache "https://nodejs.org/dist/v${NODEJSVER}/node-v${NODEJSVER}-linux-x64.tar.xz" "node-v${NODEJSVER}-linux-x64.tar.xz" "Nodejs"
-    tar -xf node-v${NODEJSVER}-linux-x64.tar.xz
-    mv node-v${NODEJSVER}-linux-x64 /usr/local/node
+    ins_begin
+    wget_cache "https://nodejs.org/dist/v${NODEJS_VER}/node-v${NODEJS_VER}-linux-x64.tar.xz" "node-v${NODEJS_VER}-linux-x64.tar.xz"
+    if ! tar -xf node-v${NODEJS_VER}-linux-x64.tar.xz; then
+        echo "${MODULE_NAME}-${NODEJS_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
+
+    mv node-v${NODEJS_VER}-linux-x64 /usr/local/node
     chown root:root -R /usr/local
     ln -sf /usr/local/node/bin/node /usr/local/bin/node
     ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
     ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
-    ins_end "node"
+
+    ins_end
     echo_green "\tnpm版本：$(npm --version)"
 }
 
@@ -765,10 +793,10 @@ install_mysql() {
     # wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
     # rpm -Uvh mysql57-community-release-el7-11.noarch.rpm
     # yum install -y mysql-community-server
-    ins_begin "MySQL"
+    ins_begin
 
     echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         DBROOTPWD=""
     else
         read -r -p "密码: " DBROOTPWD
@@ -779,38 +807,44 @@ install_mysql() {
     fi
     echo_green "MySQL ROOT 用户密码(请记下来): ${DBROOTPWD}"
 
+    wget_cache "http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz" "boost_1_59_0.tar.gz" "Boost"
+    if ! tar zxf boost_1_59_0.tar.gz; then
+        echo "Boost-1.59.0 源码包下载失败，退出 MySQL 安装！" >> /root/install-error.log
+        return
+    fi
+    mv boost_1_59_0 /usr/local/boost
+    chown root:root -R /usr/local/boost
+
+    wget_cache "https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQL_VER}.tar.gz" "mysql-${MYSQL_VER}.tar.gz"
+    if ! tar zxf mysql-${MYSQL_VER}.tar.gz; then
+        echo "${MODULE_NAME}-${MYSQL_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
+
     rpm -qa | grep mysql
     rpm -e mysql mysql-libs --nodeps
     yum remove -y mysql-server mysql mysql-libs
     yum install -y ncurses-devel gcc gcc-c++ bison
     yum -y remove boost-*
-    rm -rf "${INSHOME}/database/mysql"
+
+    MYSQLHOME=${INSHOME}/database/mysql
+    rm -rf ${MYSQLHOME}
     rm -rf /usr/local/mysql
-
-    wget_cache "http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz" "boost_1_59_0.tar.gz" "Boost"
-    tar zxf boost_1_59_0.tar.gz
-    mv boost_1_59_0 /usr/local/boost
-    chown root:root -R /usr/local/boost
-
-    wget_cache "https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQLVER}.tar.gz" "mysql-${MYSQLVER}.tar.gz" "MySQL"
-    tar zxf mysql-${MYSQLVER}.tar.gz
-    cd mysql-${MYSQLVER} || exit
-
     rm -f /etc/my.cnf
     groupadd mysql
     useradd -r -g mysql -s /bin/false mysql
-    mkdir -p "${INSHOME}/database/mysql"
-    chown -R mysql:mysql "${INSHOME}/database/mysql"
+    mkdir -p ${MYSQLHOME}
+    chown -R mysql:mysql ${MYSQLHOME}
 
+    cd mysql-${MYSQL_VER}
     cmake . -DCMAKE_INSTALL_PREFIX=/usr/local/mysql \
             -DDOWNLOAD_BOOST=1 \
             -DWITH_BOOST=/usr/local/boost \
-            -DMYSQL_DATADIR="${INSHOME}"/database/mysql \
+            -DMYSQL_DATADIR="${MYSQLHOME}" \
             -DDEFAULT_CHARSET=utf8mb4 \
             -DDEFAULT_COLLATION=utf8mb4_general_ci
-    # make && make install
-    make -j ${CPUS}
-    make install
+    make -j ${CPUS} && make install || echo "${MODULE_NAME}-${MYSQL_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    cd ..
 
     chgrp -R mysql /usr/local/mysql/.
     cp /usr/local/mysql/support-files/mysql.server /etc/init.d/mysqld
@@ -828,7 +862,7 @@ default-character-set = utf8
 [mysqld]
 port        = 3306
 socket      = /tmp/mysql.sock
-datadir     = ${INSHOME}/database/mysql
+datadir     = ${MYSQLHOME}
 skip-external-locking
 key_buffer_size = 16M
 max_allowed_packet = 1M
@@ -857,9 +891,9 @@ early-plugin-load = ""
 
 default_storage_engine = InnoDB
 innodb_file_per_table = 1
-innodb_data_home_dir = ${INSHOME}/database/mysql
+innodb_data_home_dir = ${MYSQLHOME}
 innodb_data_file_path = ibdata1:10M:autoextend
-innodb_log_group_home_dir = ${INSHOME}/database/mysql
+innodb_log_group_home_dir = ${MYSQLHOME}
 innodb_buffer_pool_size = 16M
 innodb_log_file_size = 5M
 innodb_log_buffer_size = 8M
@@ -964,7 +998,7 @@ EOF
         sed -i "s#^performance_schema_max_table_instances.*#performance_schema_max_table_instances = 10000#" /etc/my.cnf
     fi
 
-    /usr/local/mysql/bin/mysqld --initialize-insecure --basedir=/usr/local/mysql --datadir="${INSHOME}"/database/mysql --user=mysql
+    /usr/local/mysql/bin/mysqld --initialize-insecure --basedir=/usr/local/mysql --datadir=${MYSQLHOME} --user=mysql
     # --initialize 会生成一个随机密码(~/.mysql_secret)，--initialize-insecure 不会生成密码
 
     cat > /etc/ld.so.conf.d/mysql.conf<<EOF
@@ -997,7 +1031,7 @@ EOF
     /usr/local/mysql/bin/mysql -e "FLUSH PRIVILEGES;" -uroot -p${DBROOTPWD}
 
     echo_yellow "是否生成 ~/.my.cnf（如选择是，在命令行可以不用密码进入MySQL）? "
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         ADDMYCNF="N"
     else
         read -r -p "是(Y)/否(N): " ADDMYCNF
@@ -1012,49 +1046,59 @@ EOF
         chmod 0400 /root/.my.cnf
     fi
 
-    ins_end "mysql"
-    cd ..
+    ins_end
 }
 
 install_start-stop-daemon() {
     ins_begin "start-stop-daemon"
     yum install -y ncurses-devel
-    wget_cache "http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${DAEMONVER}.tar.xz" "start-stop-daemon_${DAEMONVER}.tar.xz" "start-stop-daemon"
-    mkdir start-stop-daemon_${DAEMONVER}
-    tar -xf start-stop-daemon_${DAEMONVER}.tar.xz -C ./start-stop-daemon_${DAEMONVER} --strip-components 1
-    cd start-stop-daemon_${DAEMONVER} || exit
+    wget_cache "http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${STARTSTOPDAEMON_VER}.tar.xz" "start-stop-daemon_${STARTSTOPDAEMON_VER}.tar.xz" "start-stop-daemon"
+    mkdir start-stop-daemon_${STARTSTOPDAEMON_VER}
+    if ! tar -xf start-stop-daemon_${STARTSTOPDAEMON_VER}.tar.xz -C ./start-stop-daemon_${STARTSTOPDAEMON_VER} --strip-components 1; then
+        echo "start-stop-daemon-${STARTSTOPDAEMON_VER} 源码包下载失败，会影响 Nginx 服务！" >> /root/install-error.log
+        return
+    fi
 
+    cd start-stop-daemon_${STARTSTOPDAEMON_VER}
     ./configure
-    make && make install
+    make && make install || echo "start-stop-daemon-${STARTSTOPDAEMON_VER} 源码编译失败，会影响 Nginx 服务！" >> /root/install-error.log; return
+    cd ..
 
     ins_end "start-stop-daemon"
-    cd ..
 }
+
 install_nginx() {
     ins_begin "Nginx"
     rpm -qa | grep httpd
     rpm -e httpd httpd-tools --nodeps
     yum remove -y httpd*
     yum install -y build-essential libpcre3 libpcre3-dev zlib1g-dev patch redhat-lsb pcre-devel
-    rm -rf /usr/local/nginx
 
     install_start-stop-daemon
     install_acme
 
     git clone https://github.com/google/ngx_brotli.git
-    cd ngx_brotli || exit
+    cd ngx_brotli
     git submodule update --init
     cd ..
 
     wget_cache "https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz" "OpenSSL_1_1_1.tar.gz" "OpenSSL"
-    tar xzf OpenSSL_1_1_1.tar.gz
+    if ! tar xzf OpenSSL_1_1_1.tar.gz; then
+        echo "OpenSSL-1.1.1 源码包下载失败，退出 Nginx 安装！" >> /root/install-error.log
+        return
+    fi
     mv openssl-OpenSSL_1_1_1 openssl
 
-    wget_cache "https://nginx.org/download/nginx-${NGINXVER}.tar.gz" "nginx-${NGINXVER}.tar.gz" "Nginx"
-    tar zxf nginx-${NGINXVER}.tar.gz
-    cd nginx-${NGINXVER} || exit
-    sed -i "s/${NGINXVER}/8.8.8.8/g" src/core/nginx.h
+    wget_cache "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" "nginx-${NGINX_VER}.tar.gz"
+    if ! tar zxf nginx-${NGINX_VER}.tar.gz; then
+        echo "${MODULE_NAME}-${NGINX_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
 
+    rm -rf /usr/local/nginx
+
+    cd nginx-${NGINX_VER}
+    sed -i "s/${NGINX_VER}/8.8.8.8/g" src/core/nginx.h
     ./configure \
         --add-module=../ngx_brotli \
         --with-openssl=../openssl \
@@ -1065,17 +1109,19 @@ install_nginx() {
         --without-mail_pop3_module \
         --without-mail_imap_module \
         --without-mail_smtp_module
-    make && make install
+    make && make install || echo "${MODULE_NAME}-${NGINX_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    cd ..
 
     ln -sf /usr/local/nginx/sbin/nginx /usr/local/bin/nginx
     rm -f /usr/local/nginx/conf/nginx.conf
+    echo "${NGINX_VER}" > /usr/local/nginx/version.txt
 
     mkdir -p "${INSHOME}/wwwlogs"
     chmod 777 "${INSHOME}/wwwlogs"
 
     mkdir -p "${INSHOME}/wwwroot"
-    chmod +w "${INSHOME}/wwwroot"
     chown -R nobody:nobody "${INSHOME}/wwwroot"
+    chmod +w "${INSHOME}/wwwroot"
 
     mkdir -p "${INSHOME}/wwwconf/nginx"
     chown -R nobody:nobody "${INSHOME}/wwwconf"
@@ -1270,12 +1316,11 @@ EOF
     chkconfig --add nginx
     chkconfig nginx on
 
-    echo_green "[√] Nginx 安装成功！当前版本：$(nginx -v)"
-    cd ..
+    ins_end
 }
 
 install_php() {
-    ins_begin "PHP"
+    ins_begin
     yum -y remove php* libzip
     rpm -qa | grep php
     rpm -e php-mysql php-cli php-gd php-common php --nodeps
@@ -1283,13 +1328,15 @@ install_php() {
     yum install -y libmcrypt libmcrypt-devel mcrypt mhash
 
     wget_cache "https://libzip.org/download/libzip-1.5.1.tar.gz" "libzip-1.5.1.tar.gz" "libzip"
-    tar zxf libzip-1.5.1.tar.gz
-    cd libzip-1.5.1 || exit
-    mkdir build
-    cd build || exit
-    cmake .. && make && make install
-    cd ..
-    cd ..
+    if ! tar zxf libzip-1.5.1.tar.gz; then
+        echo "libzip-1.5.1 源码包下载失败，退出 PHP 安装！" >> /root/install-error.log
+        return
+    fi
+
+    mkdir libzip-1.5.1/build && cd libzip-1.5.1/build
+    cmake ..
+    make && make install || echo "${MODULE_NAME} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    cd ../..
 
     cat > /etc/ld.so.conf.d/php.local.conf<<EOF
 /usr/local/lib64
@@ -1299,9 +1346,13 @@ install_php() {
 EOF
     ldconfig
 
-    wget_cache "http://cn2.php.net/get/php-${PHPVER}.tar.gz/from/this/mirror" "php-${PHPVER}.tar.gz" "PHP"
-    tar zxf php-${PHPVER}.tar.gz
-    cd php-${PHPVER} || exit
+    wget_cache "http://cn2.php.net/get/php-${PHP_VER}.tar.gz/from/this/mirror" "php-${PHP_VER}.tar.gz" "PHP"
+    if ! tar zxf php-${PHP_VER}.tar.gz; then
+        echo "${MODULE_NAME}-${PHP_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
+
+    cd php-${PHP_VER}
     ./configure --prefix=/usr/local/php \
                 --with-config-file-path=/usr/local/php/etc \
                 --with-config-file-scan-dir=/usr/local/php/conf.d \
@@ -1346,7 +1397,8 @@ EOF
                 --enable-session
 
     #make ZEND_EXTRA_LIBS='-liconv' && make install
-    make -j ${CPUS} && make install
+    make -j ${CPUS} && make install || echo "${MODULE_NAME}-${PHP_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    cd ..
 
     ln -sf /usr/local/php/bin/php /usr/local/bin/php
     ln -sf /usr/local/php/bin/phpize /usr/local/bin/phpize
@@ -1376,7 +1428,7 @@ EOF
     fi
 
     echo_yellow "是否启用 Opcache? "
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         OPCACHE="Y"
     else
         read -r -p "是(Y)/否(N): " OPCACHE
@@ -1391,7 +1443,7 @@ EOF
         echo "zend_extension=opcache.so" >> /usr/local/php/etc/php.ini
 
         echo_yellow "当前服务器是否生产服务器（如选择是，每次更新 PHP 代码后请重启 php-fpm）? "
-        if [[ ${AUTOINSTALL} == "auto" ]]; then
+        if [[ ${INSSTACK} == "auto" ]]; then
             PHPPROD="Y"
         else
             read -r -p "是(Y)/否(N): " PHPPROD
@@ -1401,11 +1453,26 @@ EOF
         fi
     fi
 
+    echo_yellow "是否限制PHP访问目录(如限制，可能会造成系统缓存影响)?"
+    if [[ ${INSSTACK} == "auto" ]]; then
+        SETOPENBASEDIR="N"
+    else
+        read -r -p "是(Y)/否(N): " SETOPENBASEDIR
+    fi
+    if [[ ${SETOPENBASEDIR} = "y" || ${SETOPENBASEDIR} = "Y" ]]; then
+        echo_blue "默认允许目录: ${INSHOME}/wwwroot /tmp"
+        read -r -p "如要允许更多目录，请输入后回车(多个目录请用:隔开): " ALLOWPHPDIR
+        if [[ ${ALLOWPHPDIR} != "" ]]; then
+            ALLOWPHPDIR=":${ALLOWPHPDIR}"
+        fi
+        sed -i "s#;open_basedir =#open_basedir = ${INSHOME}/wwwroot:/tmp${ALLOWPHPDIR}#g" /usr/local/php/etc/php.ini
+    fi
+
     pear config-set php_ini /usr/local/php/etc/php.ini
     pecl config-set php_ini /usr/local/php/etc/php.ini
 
     echo_yellow "是否安装 Composer? "
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         echo_blue "自动安装，跳过安装 Composer"
     else
         read -r -p "是(Y)/否(N): " INSCPR
@@ -1416,7 +1483,6 @@ EOF
         fi
     fi
 
-    echo_blue "Creating new php-fpm configure file..."
     cat >/usr/local/php/etc/php-fpm.conf<<EOF
 [global]
 pid = /usr/local/php/var/run/php-fpm.pid
@@ -1467,57 +1533,62 @@ EOF
     chkconfig --add php-fpm
     chkconfig php-fpm on
 
-    cd ..
-
-    wget_cache "http://pecl.php.net/get/mcrypt-${MCRYPTVER}.tgz" "mcrypt-${MCRYPTVER}.tgz" "mcrypt"
-    tar xf mcrypt-${MCRYPTVER}.tgz
-    cd mcrypt-${MCRYPTVER} || exit
-    phpize
-    ./configure --with-php-config=/usr/local/php/bin/php-config
-    make && make install
-    echo "extension=mcrypt.so" >> /usr/local/php/etc/php.ini
-    cd ..
-
-    if [ -s /usr/local/redis/bin/redis-server ]; then
-        wget_cache "https://github.com/phpredis/phpredis/archive/master.zip" "phpredis-master.zip" "PHPRedis"
-        unzip phpredis-master.zip
-        cd phpredis-master || exit
+    wget_cache "http://pecl.php.net/get/mcrypt-${MCRYPT_VER}.tgz" "mcrypt-${MCRYPT_VER}.tgz" "PHP-Mcrypt"
+    if ! tar xf mcrypt-${MCRYPT_VER}.tgz; then
+        echo "PHP-Mcrypt-${MCRYPT_VER} 模块源码包下载失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+    else
+        cd mcrypt-${MCRYPT_VER}
         phpize
         ./configure --with-php-config=/usr/local/php/bin/php-config
-        make && make install
-        echo "extension=redis.so" >> /usr/local/php/etc/php.ini
+        make && make install || echo "PHP-Mcrypt-${MCRYPT_VER} 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+        echo "extension=mcrypt.so" >> /usr/local/php/etc/php.ini
         cd ..
     fi
 
+    if [ -s /usr/local/redis/bin/redis-server ]; then
+        wget_cache "https://github.com/phpredis/phpredis/archive/master.zip" "phpredis-master.zip" "PHP-Redis"
+        if ! unzip phpredis-master.zip; then
+            echo "PHP-Redis 模块源码包下载失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+        else
+            cd phpredis-master
+            phpize
+            ./configure --with-php-config=/usr/local/php/bin/php-config
+            make && make install || echo "PHP-Redis 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+            echo "extension=redis.so" >> /usr/local/php/etc/php.ini
+            cd ..
+        fi
+    fi
+
     echo_yellow "是否安装 MySQL 扩展（不建议安装，请使用最新版如 MySQLi 扩展）? "
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         echo_blue "自动安装，跳过安装 MySQL 扩展"
     else
         read -r -p "是(Y)/否(N): " PHPMYSQL
         if [[ ${PHPMYSQL} == "y" || ${PHPMYSQL} == "Y" ]]; then
             wget -c --no-cookie "http://git.php.net/?p=pecl/database/mysql.git;a=snapshot;h=647c933b6cc8f3e6ce8a466824c79143a98ee151;sf=tgz" -O php-mysql.tar.gz
             mkdir ./php-mysql
-            tar xzf php-mysql.tar.gz -C ./php-mysql --strip-components 1
-            cd php-mysql
-            phpize
-            ./configure  --with-php-config=/usr/local/php/bin/php-config --with-mysql=mysqlnd
-            make && make install
-            echo "extension=mysql.so" >> /usr/local/php/etc/php.ini
-            # sed -i "s/^error_reporting = .*/error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED/g" /usr/local/php/etc/php.ini
-            cd ..
+            if ! tar xzf php-mysql.tar.gz -C ./php-mysql --strip-components 1; then
+                echo "PHP-MySQL 扩展源码包下载失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+            else
+                cd php-mysql
+                phpize
+                ./configure  --with-php-config=/usr/local/php/bin/php-config --with-mysql=mysqlnd
+                make && make install || echo "PHP-MySQL 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+                echo "extension=mysql.so" >> /usr/local/php/etc/php.ini
+                # sed -i "s/^error_reporting = .*/error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED/g" /usr/local/php/etc/php.ini
+                cd ..
+            fi
         fi
     fi
 
-    sed -i "s#;open_basedir =#open_basedir = ${INSHOME}/wwwroot#g" /usr/local/php/etc/php.ini
-
-    ins_end "php"
+    ins_end
 }
 
 install_redis() {
-    ins_begin "Redis"
+    ins_begin
 
     echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         REDISPWD=""
     else
         read -r -p "密码: " REDISPWD
@@ -1528,24 +1599,30 @@ install_redis() {
     fi
     echo_green "Redis 安全密码(请记下来): ${REDISPWD}"
 
+    REDISHOME=${INSHOME}/database/redis
     groupadd redis
     useradd -r -g redis -s /bin/false redis
     mkdir -p /usr/local/redis/{etc,run}
-    mkdir -p "${INSHOME}/database/redis"
-    chown -R redis:redis "${INSHOME}/database/redis"
+    mkdir -p ${REDISHOME}
+    chown -R redis:redis ${REDISHOME}
 
-    wget_cache "http://download.redis.io/releases/redis-${REDISVER}.tar.gz" "redis-${REDISVER}.tar.gz" "Redis"
-    tar zxf redis-${REDISVER}.tar.gz
-    cd redis-${REDISVER} || exit
-    make && make PREFIX=/usr/local/redis install
+    wget_cache "http://download.redis.io/releases/redis-${REDIS_VER}.tar.gz" "redis-${REDIS_VER}.tar.gz"
+    if ! tar zxf redis-${REDIS_VER}.tar.gz; then
+        echo "${MODULE_NAME}-${REDIS_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
 
-    cp redis.conf  /usr/local/redis/etc/
+    cd redis-${REDIS_VER}
+    make && make PREFIX=/usr/local/redis install || echo "${MODULE_NAME}-${REDIS_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    cd ..
+
+    cp redis-${REDIS_VER}/redis.conf  /usr/local/redis/etc/
     sed -i "s/daemonize no/daemonize yes/g" /usr/local/redis/etc/redis.conf
     sed -i "s/^# bind 127.0.0.1/bind 127.0.0.1/g" /usr/local/redis/etc/redis.conf
     sed -i "s#^pidfile /var/run/redis_6379.pid#pidfile /usr/local/redis/run/redis.pid#g" /usr/local/redis/etc/redis.conf
     sed -i "s/^# requirepass.*/requirepass ${REDISPWD}/g" /usr/local/redis/etc/redis.conf
     sed -i "s#logfile ""#logfile ${INSHOME}/wwwlogs/redis.log#g" /usr/local/redis/etc/redis.conf
-    sed -i "s#dir ./#dir ${INSHOME}/database/redis/#g" /usr/local/redis/etc/redis.conf
+    sed -i "s#dir ./#dir ${REDISHOME}/#g" /usr/local/redis/etc/redis.conf
 
     cat > /etc/rc.d/init.d/redis<<EOF
 #! /bin/bash
@@ -1673,7 +1750,6 @@ EOF
     ln -sf /usr/local/redis/bin/redis-cli /usr/local/bin/redis-cli
 
     ins_end "redis-server"
-    cd ..
 }
 
 install_tomcat() {
@@ -1683,21 +1759,23 @@ install_tomcat() {
     export JRE_HOME=/usr/lib/jvm/java-11-openjdk/jre
     ins_end "java"
 
-    ins_begin "Tomcat"
-    wget_cache "https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCATVER}/bin/apache-tomcat-${TOMCATVER}.tar.gz" "apache-tomcat-${TOMCATVER}.tar.gz" "Tomcat"
-    tar zxf apache-tomcat-${TOMCATVER}.tar.gz
-    cd apache-tomcat-${TOMCATVER}/bin || exit
+    ins_begin
+    wget_cache "https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VER}/bin/apache-tomcat-${TOMCAT_VER}.tar.gz" "apache-tomcat-${TOMCAT_VER}.tar.gz"
+    if ! tar zxf apache-tomcat-${TOMCAT_VER}.tar.gz; then
+        echo "${MODULE_NAME}-${TOMCAT_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
+
+    cd apache-tomcat-${TOMCAT_VER}/bin
     tar zxf commons-daemon-native.tar.gz
-    cd commons-daemon-1.1.0-native-src/unix || exit
+    cd commons-daemon-1.1.0-native-src/unix
     ./configure
-    make
+    make || echo "${MODULE_NAME}-${TOMCAT_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
     mv jsvc ../../
-    cd ..
-    cd ..
+    cd ../..
     rm -rf commons-daemon-1.1.0-native-src commons-daemon-native.tar.gz tomcat-native.tar.gz
-    cd ..
-    cd ..
-    mv apache-tomcat-${TOMCATVER} /usr/local/tomcat
+    cd ../..
+    mv apache-tomcat-${TOMCAT_VER} /usr/local/tomcat
 
     groupadd tomcat
     useradd -r -g tomcat -s /bin/false tomcat
@@ -1947,7 +2025,7 @@ install_shellMonitor() {
         echo_yellow "已存在 shellMonitor, 是否覆盖安装?"
         read -r -p "是(Y)/否(N): " REINSMONITOR
         if [[ ${REINSMONITOR} == "y" || ${REINSMONITOR} == "Y" ]]; then
-            cp /usr/local/shellMonitor/config.sh ./
+            cp /usr/local/shellMonitor/config.sh ./shellMonitor.config.bak
             echo_blue "删除旧 shellMonitor..."
             rm -rf /usr/local/shellMonitor
             sed -i '/shellMonitor/d' /var/spool/cron/root
@@ -1956,13 +2034,18 @@ install_shellMonitor() {
             return
         fi
     fi
+
     wget_cache "https://github.com/zsenliao/shellMonitor/archive/master.zip" "shellMonitor.zip" "shellMonitor"
-    unzip shellMonitor.zip
+    if ! unzip shellMonitor.zip; then
+        echo "shellMonitor 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        return
+    fi
+
     mv shellMonitor-master /usr/local/shellMonitor
     chmod +x /usr/local/shellMonitor/*.sh
-    if [ -f ./config.sh ]; then
+    if [ -f ./shellMonitor.config.bak ]; then
         echo_blue "当前 shellMonitor 配置为:"
-        cat ./config.sh
+        cat ./shellMonitor.config.bak
     fi
     /usr/local/shellMonitor/main.sh init
     echo_green "[!] shellMonitor 安装成功!"
@@ -1970,7 +2053,7 @@ install_shellMonitor() {
 
 register_management-tool() {
     echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         MYNAME="pnmp"
     else
         while :;do
@@ -1993,9 +2076,9 @@ register_management-tool() {
     chmod +x /usr/local/bin/${MYNAME}
 }
 
-clean_install() {
+clean_install_files() {
     echo_yellow "是否清理安装文件?"
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         CLRANINS="Y"
     else
         read -r -p "全部(A)是(Y)/否(N): " CLRANINS
@@ -2005,6 +2088,7 @@ clean_install() {
         for deldir in "${CUR_DIR}"/src/*
         do
             if [ -d "${deldir}" ]; then
+                echo_blue "正在删除 ${deldir}..."
                 rm -rf "${deldir}"
             fi
         done
@@ -2015,6 +2099,13 @@ clean_install() {
         echo_blue "安装文件清理完成。"
     fi
 
+    ENDTIME=$(date +%s)
+    echo_blue "总共用时 $(((ENDTIME-STARTTIME)/60)) 分"
+}
+
+clean_install() {
+    clean_install_files
+
     echo_green "服务器环境安装配置成功！"
     echo_blue "环境管理命令：${MYNAME}"
     echo_blue "可以通过 ${MYNAME} vhost add 来添加网站"
@@ -2022,8 +2113,8 @@ clean_install() {
     echo_blue "网站程序目录：${INSHOME}/wwwroot"
     echo_blue "网站日志目录：${INSHOME}/wwwlogs"
     echo_blue "配置文件目录：${INSHOME}/wwwconf"
-    echo_blue "MySQL 数据库目录：${INSHOME}/database/mysql"
-    echo_blue "Redis 数据库目录：${INSHOME}/database/redis"
+    echo_blue "MySQL 数据库目录：${MYSQLHOME}"
+    echo_blue "Redis 数据库目录：${REDISHOME}"
     echo " "
     echo_blue "MySQL ROOT 密码：${DBROOTPWD}"
     echo_blue "Redis 安全密码：${REDISPWD}"
@@ -2038,12 +2129,10 @@ clean_install() {
     else
         netstat -ntl
     fi
-    ENDTIME=$(date +%s)
-    echo_blue "总共用时 $(((ENDTIME-STARTTIME)/60)) 分"
 
     if [[ ${INSNGINX} == "y" || ${INSNGINX} == "Y" ]]; then
         echo_yellow "是否要添加默认站点? "
-        if [[ ${AUTOINSTALL} == "auto" ]]; then
+        if [[ ${INSSTACK} == "auto" ]]; then
             echo_blue "自动化脚本不添加默认站点"
         else
             read -r -p "是(Y)/否(N): " ADDHOST
@@ -2066,20 +2155,26 @@ if [[ $(id -u) != "0" ]]; then
     exit 1
 fi
 
-fdisk -l | grep vdb 2>&1
-if [ $? -eq 0 ]; then
-    SENCOND=$(df -h | grep vdb 2>&1)
-    if [ -z "$SENCOND" ]; then
-        echo_red "监测到服务器有第二磁盘且未挂载。建议可先退出程序，参照云服务商说明挂载磁盘后再运行本工具"
-        if [[ ${AUTOINSTALL} == "auto" ]]; then
-            echo_blue "自动化脚本不退出"
-        else
-            read -r -p "是否退出(q),不退出请直接回车? " EXITTOOLS
-            if [[ ${EXITTOOLS} == "q" || ${EXITTOOLS} == "Q" ]]; then
+if disk2=$(fdisk -l | grep vdb 2>/dev/null); then
+    if ! df -h | grep vdb 2>/dev/null; then
+        echo_red "监测到服务器有未挂载磁盘，$(echo $disk2 | awk '{print $1$2$3}')"
+        if [[ ${INSSTACK} != "auto" ]]; then
+            read -r -p "是否继续安装(按 q 回车退出安装)? " EXITINSTALL
+            if [[ ${EXITINSTALL} == "q" || ${EXITINSTALL} == "Q" ]]; then
                 exit 0
             fi
         fi
     fi
+fi
+
+mkdir -p "${CUR_DIR}/src"
+cd "${CUR_DIR}/src" || exit
+
+yum -y update
+yum -y upgrade
+
+if ! grep /usr/local/bin ~/.bashrc ; then
+    echo "export PATH=/usr/local/bin:\$PATH" >> ~/.bashrc
 fi
 
 echo_blue "========= 基本信息 ========="
@@ -2108,7 +2203,7 @@ if [[ ${MemTotal} -lt 1024 ]]; then
 fi
 
 echo_yellow "是否调整时区?"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+if [[ ${INSSTACK} == "auto" ]]; then
     SETTIMEZONE="Y"
 else
     read -r -p "是(Y)/否(N): " SETTIMEZONE
@@ -2118,7 +2213,7 @@ if [[ ${SETTIMEZONE} == "y" || ${SETTIMEZONE} == "Y" ]]; then
 fi
 
 echo_yellow "请输入安装目录（比如 /home 或 /data），默认 /data"
-if [[ ${AUTOINSTALL} != "auto" ]]; then
+if [[ ${INSSTACK} != "auto" ]]; then
     read -r -p "请输入: " INSHOME
 fi
 if [ -z "${INSHOME}" ]; then
@@ -2127,19 +2222,14 @@ fi
 echo_blue "系统安装目录：${INSHOME}"
 mkdir -p ${INSHOME}
 
-mkdir -p "${CUR_DIR}/src"
-cd "${CUR_DIR}/src" || exit
-
 systemctl start firewalld
 disable_selinux
 check_hosts
 
-yum -y update
-yum -y upgrade
 yum install -y wget gcc make curl unzip
 
 echo_yellow "是否修改 HostName?"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+if [[ ${INSSTACK} == "auto" ]]; then
     SETHOST="Y"
 else
     read -r -p "是(Y)/否(N): " SETHOST
@@ -2149,17 +2239,17 @@ if [[ ${SETHOST} == "y" || ${SETHOST} == "Y" ]]; then
 fi
 
 echo_yellow "是否添加用户?"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+if [[ ${INSSTACK} == "auto" ]]; then
     echo_blue "自动脚本跳过添加用户"
 else
     read -r -p "是(Y)/否(N): " ADDUSER
     if [[ ${ADDUSER} == "y" || ${ADDUSER} == "Y" ]]; then
-    add_user
-fi
+        add_user
+    fi
 fi
 
 echo_yellow "是否修改 SSH 配置?"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+if [[ ${INSSTACK} == "auto" ]]; then
     echo_blue "自动脚本跳过修改 SSH 配置"
 else
     read -r -p "是(Y)/否(N): " SETSSH
@@ -2168,9 +2258,10 @@ else
     fi
 fi
 
-show_ver "cmake --version" "CMake"
-if [[ ${VER} != "" ]]; then
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="CMake"
+show_ver
+if [[ ${MODULE_VER} != "" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         INSCMAKE="Y"
     else
         read -r -p "是(Y)/否(N): " INSCMAKE
@@ -2182,9 +2273,10 @@ else
     install_cmake
 fi
 
-show_ver "git --version" "Git"
-if [[ ${VER} != "" ]]; then
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="Git"
+show_ver
+if [[ ${MODULE_VER} != "" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         INSGIT="Y"
     else
         read -r -p "是(Y)/否(N): " INSGIT
@@ -2196,9 +2288,10 @@ else
     install_git
 fi
 
-show_ver "zsh --version" "zsh"
-if [[ ${VER} != "" ]]; then
-    if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="ZSH"
+show_ver
+if [[ ${MODULE_VER} != "" ]]; then
+    if [[ ${INSSTACK} == "auto" ]]; then
         INSZSH="Y"
     else
         read -r -p "是(Y)/否(N): " INSZSH
@@ -2210,8 +2303,9 @@ else
     install_zsh
 fi
 
-show_ver "vim --version | head -n 1" "vim"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="Vim"
+show_ver
+if [[ ${INSSTACK} == "auto" ]]; then
     INSVIM="Y"
 else
     read -r -p "是(Y)/否(N): " INSVIM
@@ -2220,8 +2314,9 @@ if [[ ${INSVIM} == "y" || ${INSVIM} == "Y" ]]; then
     install_vim
 fi
 
-show_ver "python3 --version" "Python3"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="Python3"
+show_ver
+if [[ ${INSSTACK} == "auto" ]]; then
     INSPYTHON3="Y"
 else
     read -r -p "是(Y)/否(N): " INSPYTHON3
@@ -2231,8 +2326,9 @@ if [[ ${INSPYTHON3} == "y" || ${INSPYTHON3} == "Y" ]]; then
     install_uwsgi
 fi
 
-show_ver "redis-server --version" "Redis"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="Redis"
+show_ver
+if [[ ${INSSTACK} == "auto" ]]; then
     INSREDIS="Y"
 else
     read -r -p "是(Y)/否(N): " INSREDIS
@@ -2241,8 +2337,9 @@ if [[ ${INSREDIS} == "y" || ${INSREDIS} == "Y" ]]; then
     install_redis
 fi
 
-show_ver "php --version" "PHP"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="PHP"
+show_ver
+if [[ ${INSSTACK} == "auto" ]]; then
     INSPHP="Y"
 else
     read -r -p "是(Y)/否(N): " INSPHP
@@ -2251,8 +2348,9 @@ if [[ ${INSPHP} == "y" || ${INSPHP} == "Y" ]]; then
     install_php
 fi
 
-show_ver "mysql --version" "MySQL"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="MySQL"
+show_ver
+if [[ ${INSSTACK} == "auto" ]]; then
     INSMYSQL="Y"
 else
     read -r -p "是(Y)/否(N): " INSMYSQL
@@ -2261,8 +2359,9 @@ if [[ ${INSMYSQL} == "y" || ${INSMYSQL} == "Y" ]]; then
     install_mysql
 fi
 
-show_ver "node --version" "Nodejs"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="NodeJS"
+show_ver
+if [[ ${INSSTACK} == "auto" ]]; then
     INSNODEJS="Y"
 else
     read -r -p "是(Y)/否(N): " INSNODEJS
@@ -2271,8 +2370,9 @@ if [[ ${INSNODEJS} == "y" || ${INSNODEJS} == "Y" ]]; then
     install_nodejs
 fi
 
-show_ver "nginx -v" "Nginx"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="Nginx"
+show_ver
+if [[ ${INSSTACK} == "auto" ]]; then
     INSNGINX="Y"
 else
     read -r -p "是(Y)/否(N): " INSNGINX
@@ -2281,8 +2381,9 @@ if [[ ${INSNGINX} == "y" || ${INSNGINX} == "Y" ]]; then
     install_nginx
 fi
 
-show_ver "java -version" "Tomcat"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+MODULE_NAME="Tomcat"
+show_ver
+if [[ ${INSSTACK} == "auto" ]]; then
     INSTOMCAT="Y"
 else
     read -r -p "是(Y)/否(N): " INSTOMCAT
@@ -2293,7 +2394,7 @@ fi
 
 echo_yellow "是否设置 SMTP 发送邮件?"
 echo_blue "提示：阿里云/腾讯云服务器封掉了 25 端口，默认方式发送邮件不成功(可以申请解封)"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+if [[ ${INSSTACK} == "auto" ]]; then
     SETSMTP="N"
 else
     read -r -p "是(Y)/否(N): " SETSMTP
@@ -2303,7 +2404,7 @@ if [[ ${SETSMTP} == "y" || ${SETSMTP} == "y" ]]; then
 fi
 
 echo_yellow "是否安装 shellMonitor 系统监控工具?"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+if [[ ${INSSTACK} == "auto" ]]; then
     INSMONITOR="N"
 else
     read -r -p "是(Y)/否(N): " INSMONITOR
@@ -2313,7 +2414,7 @@ if [[ ${INSMONITOR} == "y" || ${INSMONITOR} == "y" ]]; then
 fi
 
 echo_yellow "是否启用防火墙(默认启用)?"
-if [[ ${AUTOINSTALL} == "auto" ]]; then
+if [[ ${INSSTACK} == "auto" ]]; then
     FIREWALL="Y"
 else
     read -r -p "是(Y)/否(N): " FIREWALL
