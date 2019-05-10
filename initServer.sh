@@ -341,6 +341,7 @@ install_git() {
     wget_cache "https://github.com/git/git/archive/master.tar.gz" "git-master.tar.gz"
     if ! tar xzf git-master.tar.gz; then
         echo "${MODULE_NAME} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -388,6 +389,7 @@ install_vim() {
     wget_cache "https://github.com/vim/vim/archive/master.tar.gz" "vim-master.tar.gz"
     if ! tar zxf vim-master.tar.gz; then
         echo "${MODULE_NAME} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -435,6 +437,7 @@ install_cmake() {
     wget_cache "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VER}/cmake-${CMAKE_VER}.tar.gz" "cmake-${CMAKE_VER}.tar.gz"
     if ! tar zxf cmake-${CMAKE_VER}.tar.gz; then
         echo "${MODULE_NAME}-${CMAKE_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -467,59 +470,7 @@ install_acme() {
     fi
 }
 
-install_python3() {
-    ins_begin
-    yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
-
-    wget_cache "https://www.python.org/ftp/python/${PYTHON_VER}/Python-${PYTHON_VER}.tgz" "Python-${PYTHON_VER}.tgz"
-    if ! tar xf Python-${PYTHON_VER}.tgz; then
-        echo "${MODULE_NAME}-${PYTHON_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        return
-    fi
-
-    cd Python-${PYTHON_VER}
-    ./configure --prefix=/usr/local/python3.7 --enable-optimizations
-    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${PYTHON_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log
-    cd ..
-
-    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
-        ins_end
-        return
-    fi
-
-    ln -sf /usr/local/python3.7/bin/python3 /usr/local/bin/python3
-    ln -sf /usr/local/python3.7/bin/2to3 /usr/local/bin/2to3
-    ln -sf /usr/local/python3.7/bin/idle3 /usr/local/bin/idle3
-    ln -sf /usr/local/python3.7/bin/pydoc3 /usr/local/bin/pydoc3
-    ln -sf /usr/local/python3.7/bin/python3.7-config /usr/local/bin/python3.7-config
-    ln -sf /usr/local/python3.7/bin/python3-config /usr/local/bin/python3-config
-    ln -sf /usr/local/python3.7/bin/pyvenv /usr/local/bin/pyvenv
-
-    curl https://bootstrap.pypa.io/get-pip.py | python3
-    ln -sf /usr/local/python3.7/bin/pip3 /usr/local/bin/pip3
-    pip3 install --upgrade pip
-
-    echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
-    if [[ ${INSSTACK} == "auto" ]]; then
-        echo_blue "自动安装，不设置 Python3 为默认环境"
-    else
-        read -r -p "是(Y)/否(N): " DEFPYH
-        if [[ ${DEFPYH} == "y" || ${DEFPYH} == "Y" ]]; then
-            # rm -r /usr/bin/python
-            ln -sf /usr/local/bin/python3 /usr/local/bin/python
-            sed -i "s/python/python2/" /usr/bin/yum
-
-            # rm -r /usr/bin/pip
-            ln -sf /usr/local/bin/pip3 /usr/local/bin/pip
-        fi
-    fi
-
-    ins_end
-    echo_green "\tpip版本：$(pip3 --version)"
-}
-
 install_uwsgi() {
-    ins_begin
     pip3 install uwsgi
     ln -sf /usr/local/python3.7/bin/uwsgi /usr/local/bin/uwsgi
 
@@ -694,8 +645,61 @@ EOF
     chkconfig --add uwsgi
     chkconfig uwsgi on
     service uwsgi start
+}
+
+install_python3() {
+    ins_begin
+    yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
+
+    wget_cache "https://www.python.org/ftp/python/${PYTHON_VER}/Python-${PYTHON_VER}.tgz" "Python-${PYTHON_VER}.tgz"
+    if ! tar xf Python-${PYTHON_VER}.tgz; then
+        echo "${MODULE_NAME}-${PYTHON_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
+        return
+    fi
+
+    cd Python-${PYTHON_VER}
+    ./configure --prefix=/usr/local/python3.7 --enable-optimizations
+    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${PYTHON_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log
+    cd ..
+
+    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
+        ins_end
+        return
+    fi
+
+    ln -sf /usr/local/python3.7/bin/python3 /usr/local/bin/python3
+    ln -sf /usr/local/python3.7/bin/2to3 /usr/local/bin/2to3
+    ln -sf /usr/local/python3.7/bin/idle3 /usr/local/bin/idle3
+    ln -sf /usr/local/python3.7/bin/pydoc3 /usr/local/bin/pydoc3
+    ln -sf /usr/local/python3.7/bin/python3.7-config /usr/local/bin/python3.7-config
+    ln -sf /usr/local/python3.7/bin/python3-config /usr/local/bin/python3-config
+    ln -sf /usr/local/python3.7/bin/pyvenv /usr/local/bin/pyvenv
+
+    curl https://bootstrap.pypa.io/get-pip.py | python3
+    ln -sf /usr/local/python3.7/bin/pip3 /usr/local/bin/pip3
+    pip3 install --upgrade pip
+
+    echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
+    if [[ ${INSSTACK} == "auto" ]]; then
+        echo_blue "自动安装，不设置 Python3 为默认环境"
+    else
+        read -r -p "是(Y)/否(N): " DEFPYH
+        if [[ ${DEFPYH} == "y" || ${DEFPYH} == "Y" ]]; then
+            # rm -r /usr/bin/python
+            ln -sf /usr/local/bin/python3 /usr/local/bin/python
+            sed -i "s/python/python2/" /usr/bin/yum
+
+            # rm -r /usr/bin/pip
+            ln -sf /usr/local/bin/pip3 /usr/local/bin/pip
+        fi
+    fi
+
+    install_uwsgi
 
     ins_end
+    echo_green "\tpip版本：$(pip3 --version)"
+    echo_green "\tuWsgi版本：$(uwsgi --version)"
 }
 
 install_ikev2() {
@@ -785,6 +789,7 @@ install_nodejs() {
     wget_cache "https://nodejs.org/dist/v${NODEJS_VER}/node-v${NODEJS_VER}-linux-x64.tar.xz" "node-v${NODEJS_VER}-linux-x64.tar.xz"
     if ! tar -xf node-v${NODEJS_VER}-linux-x64.tar.xz; then
         echo "${MODULE_NAME}-${NODEJS_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -819,6 +824,7 @@ install_mysql() {
     wget_cache "http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz" "boost_1_59_0.tar.gz" "Boost"
     if ! tar zxf boost_1_59_0.tar.gz; then
         echo "Boost-1.59.0 源码包下载失败，退出 MySQL 安装！" >> /root/install-error.log
+        ins_end
         return
     fi
     mv boost_1_59_0 /usr/local/boost
@@ -827,6 +833,7 @@ install_mysql() {
     wget_cache "https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQL_VER}.tar.gz" "mysql-${MYSQL_VER}.tar.gz"
     if ! tar zxf mysql-${MYSQL_VER}.tar.gz; then
         echo "${MODULE_NAME}-${MYSQL_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -1070,6 +1077,7 @@ install_start-stop-daemon() {
     mkdir start-stop-daemon_${STARTSTOPDAEMON_VER}
     if ! tar -xf start-stop-daemon_${STARTSTOPDAEMON_VER}.tar.xz -C ./start-stop-daemon_${STARTSTOPDAEMON_VER} --strip-components 1; then
         echo "start-stop-daemon-${STARTSTOPDAEMON_VER} 源码包下载失败，会影响 Nginx 服务！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -1099,6 +1107,7 @@ install_nginx() {
     wget_cache "https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz" "OpenSSL_1_1_1.tar.gz" "OpenSSL"
     if ! tar xzf OpenSSL_1_1_1.tar.gz; then
         echo "OpenSSL-1.1.1 源码包下载失败，退出 Nginx 安装！" >> /root/install-error.log
+        ins_end
         return
     fi
     mv openssl-OpenSSL_1_1_1 openssl
@@ -1106,6 +1115,7 @@ install_nginx() {
     wget_cache "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" "nginx-${NGINX_VER}.tar.gz"
     if ! tar zxf nginx-${NGINX_VER}.tar.gz; then
         echo "${MODULE_NAME}-${NGINX_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -1349,6 +1359,7 @@ install_php() {
     wget_cache "https://libzip.org/download/libzip-1.5.1.tar.gz" "libzip-1.5.1.tar.gz" "libzip"
     if ! tar zxf libzip-1.5.1.tar.gz; then
         echo "libzip-1.5.1 源码包下载失败，退出 PHP 安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -1368,6 +1379,7 @@ EOF
     wget_cache "http://cn2.php.net/get/php-${PHP_VER}.tar.gz/from/this/mirror" "php-${PHP_VER}.tar.gz" "PHP"
     if ! tar zxf php-${PHP_VER}.tar.gz; then
         echo "${MODULE_NAME}-${PHP_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -1633,6 +1645,7 @@ install_redis() {
     wget_cache "http://download.redis.io/releases/redis-${REDIS_VER}.tar.gz" "redis-${REDIS_VER}.tar.gz"
     if ! tar zxf redis-${REDIS_VER}.tar.gz; then
         echo "${MODULE_NAME}-${REDIS_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -1792,6 +1805,7 @@ install_tomcat() {
     wget_cache "https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VER}/bin/apache-tomcat-${TOMCAT_VER}.tar.gz" "apache-tomcat-${TOMCAT_VER}.tar.gz"
     if ! tar zxf apache-tomcat-${TOMCAT_VER}.tar.gz; then
         echo "${MODULE_NAME}-${TOMCAT_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        ins_end
         return
     fi
 
@@ -2352,7 +2366,6 @@ else
 fi
 if [[ ${INSPYTHON3} == "y" || ${INSPYTHON3} == "Y" ]]; then
     install_python3
-    MODULE_NAME="uWsgi"
     install_uwsgi
 fi
 
