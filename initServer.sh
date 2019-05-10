@@ -108,12 +108,12 @@ show_ver() {
 
 wget_cache() {
     if [ ! -f "$2" ]; then
-        if ! wget -c "$1" -O "$2"; then
+        if ! wget -c "$1" -O "$2" 2>/root/wget-${3-$MODULE_NAME}.err.log; then
             rm -f "$2"
-            echo_red "${$3-$MODULE_NAME} 下载失败! 请输入新的地址后回车重新下载:"
+            echo_red "${3-$MODULE_NAME} 下载失败! 请输入新的地址后回车重新下载:"
             echo_blue "当前下载地址: $1"
             read -r -p "请输入新的下载地址: " downloadUrl
-            wget "${downloadUrl}" -O "$2"
+            wget "${downloadUrl}" -O "$2" 2>/root/wget-${3-$MODULE_NAME}.err.log
         fi
     fi
 }
@@ -345,9 +345,8 @@ install_git() {
     fi
 
     cd git-master
-    make configure
-    ./configure --prefix=/usr/local
-    make -j ${CPUS} && make install || echo "${MODULE_NAME} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make configure && ./configure --prefix=/usr/local
+    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME} 源码编译不成功，安装失败！" >> /root/install-error.log
     cd ..
 
     ins_end
@@ -397,8 +396,13 @@ install_vim() {
     yum install -y ncurses-devel
 
     cd vim-master/src
-    make && make install || echo "${MODULE_NAME} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME} 源码编译不成功，安装失败！" >> /root/install-error.log
     cd ../..
+
+    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
+        ins_end
+        return
+    fi
 
     echo_blue "[+] 安装 vim 插件..."
     curl https://raw.githubusercontent.com/wklken/vim-for-server/master/vimrc > ~/.vimrc
@@ -440,7 +444,7 @@ install_cmake() {
 
     cd cmake-${CMAKE_VER}
     ./bootstrap
-    make -j ${CPUS} && make install || echo "${MODULE_NAME}-${CMAKE_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME} 源码编译不成功，安装失败！" >> /root/install-error.log
     cd ..
 
     ins_end
@@ -475,8 +479,13 @@ install_python3() {
 
     cd Python-${PYTHON_VER}
     ./configure --prefix=/usr/local/python3.7 --enable-optimizations
-    make -j ${CPUS} && make install || echo "${MODULE_NAME}-${PYTHON_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${PYTHON_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log
     cd ..
+
+    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
+        ins_end
+        return
+    fi
 
     ln -sf /usr/local/python3.7/bin/python3 /usr/local/bin/python3
     ln -sf /usr/local/python3.7/bin/2to3 /usr/local/bin/2to3
@@ -843,8 +852,13 @@ install_mysql() {
             -DMYSQL_DATADIR="${MYSQLHOME}" \
             -DDEFAULT_CHARSET=utf8mb4 \
             -DDEFAULT_COLLATION=utf8mb4_general_ci
-    make -j ${CPUS} && make install || echo "${MODULE_NAME}-${MYSQL_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${MYSQL_VER} 源码编译不成功，安装失败！" >> /root/install-error.log
     cd ..
+
+    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
+        ins_end
+        return
+    fi
 
     chgrp -R mysql /usr/local/mysql/.
     cp /usr/local/mysql/support-files/mysql.server /etc/init.d/mysqld
@@ -884,8 +898,8 @@ max_connect_errors = 100
 open_files_limit = 65535
 
 log-bin=mysql-bin
-binlog_format=mixed
-server-id   = 1
+binlog_format = mixed
+server-id = 1
 expire_logs_days = 10
 early-plugin-load = ""
 
@@ -1061,7 +1075,7 @@ install_start-stop-daemon() {
 
     cd start-stop-daemon_${STARTSTOPDAEMON_VER}
     ./configure
-    make && make install || echo "start-stop-daemon-${STARTSTOPDAEMON_VER} 源码编译失败，会影响 Nginx 服务！" >> /root/install-error.log; return
+    make 2>/root/make-start-stop-daemon.err.log  && make install || echo "start-stop-daemon-${STARTSTOPDAEMON_VER} 源码编译失败，会影响 Nginx 服务！" >> /root/install-error.log
     cd ..
 
     ins_end "start-stop-daemon"
@@ -1109,8 +1123,13 @@ install_nginx() {
         --without-mail_pop3_module \
         --without-mail_imap_module \
         --without-mail_smtp_module
-    make && make install || echo "${MODULE_NAME}-${NGINX_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${NGINX_VER} 源码编译不成功，安装失败！" >> /root/install-error.log
     cd ..
+
+    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
+        ins_end
+        return
+    fi
 
     ln -sf /usr/local/nginx/sbin/nginx /usr/local/bin/nginx
     rm -f /usr/local/nginx/conf/nginx.conf
@@ -1335,7 +1354,7 @@ install_php() {
 
     mkdir libzip-1.5.1/build && cd libzip-1.5.1/build
     cmake ..
-    make && make install || echo "${MODULE_NAME} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make 2>/root/make-libzip.err.log && make install || echo "libzip 源码编译不成功，${MODULE_NAME} 安装失败！" >> /root/install-error.log
     cd ../..
 
     cat > /etc/ld.so.conf.d/php.local.conf<<EOF
@@ -1397,8 +1416,13 @@ EOF
                 --enable-session
 
     #make ZEND_EXTRA_LIBS='-liconv' && make install
-    make -j ${CPUS} && make install || echo "${MODULE_NAME}-${PHP_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${PHP_VER} 源码编译不成功，安装失败！" >> /root/install-error.log
     cd ..
+
+    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
+        ins_end
+        return
+    fi
 
     ln -sf /usr/local/php/bin/php /usr/local/bin/php
     ln -sf /usr/local/php/bin/phpize /usr/local/bin/phpize
@@ -1540,7 +1564,7 @@ EOF
         cd mcrypt-${MCRYPT_VER}
         phpize
         ./configure --with-php-config=/usr/local/php/bin/php-config
-        make && make install || echo "PHP-Mcrypt-${MCRYPT_VER} 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+        make 2>/root/make-php-mcrypt.err.log && make install || echo "PHP-Mcrypt-${MCRYPT_VER} 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
         echo "extension=mcrypt.so" >> /usr/local/php/etc/php.ini
         cd ..
     fi
@@ -1553,7 +1577,7 @@ EOF
             cd phpredis-master
             phpize
             ./configure --with-php-config=/usr/local/php/bin/php-config
-            make && make install || echo "PHP-Redis 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+            make 2>/root/make-php-redis.err.log && make install || echo "PHP-Redis 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
             echo "extension=redis.so" >> /usr/local/php/etc/php.ini
             cd ..
         fi
@@ -1573,7 +1597,7 @@ EOF
                 cd php-mysql
                 phpize
                 ./configure  --with-php-config=/usr/local/php/bin/php-config --with-mysql=mysqlnd
-                make && make install || echo "PHP-MySQL 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+                make 2>/root/make-php-mysql.err.log && make install || echo "PHP-MySQL 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
                 echo "extension=mysql.so" >> /usr/local/php/etc/php.ini
                 # sed -i "s/^error_reporting = .*/error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED/g" /usr/local/php/etc/php.ini
                 cd ..
@@ -1613,8 +1637,13 @@ install_redis() {
     fi
 
     cd redis-${REDIS_VER}
-    make && make PREFIX=/usr/local/redis install || echo "${MODULE_NAME}-${REDIS_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make PREFIX=/usr/local/redis install || echo "${MODULE_NAME}-${REDIS_VER} 源码编译不成功，安装失败！" >> /root/install-error.log
     cd ..
+
+    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
+        ins_end
+        return
+    fi
 
     cp redis-${REDIS_VER}/redis.conf  /usr/local/redis/etc/
     sed -i "s/daemonize no/daemonize yes/g" /usr/local/redis/etc/redis.conf
@@ -1770,7 +1799,7 @@ install_tomcat() {
     tar zxf commons-daemon-native.tar.gz
     cd commons-daemon-1.1.0-native-src/unix
     ./configure
-    make || echo "${MODULE_NAME}-${TOMCAT_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log; return
+    make 2>/root/make-tomcat-jsvc.err.log || echo "${MODULE_NAME}-${TOMCAT_VER} 源码编译失败！" >> /root/install-error.log
     mv jsvc ../../
     cd ../..
     rm -rf commons-daemon-1.1.0-native-src commons-daemon-native.tar.gz tomcat-native.tar.gz
@@ -2323,6 +2352,7 @@ else
 fi
 if [[ ${INSPYTHON3} == "y" || ${INSPYTHON3} == "Y" ]]; then
     install_python3
+    MODULE_NAME="uWsgi"
     install_uwsgi
 fi
 
