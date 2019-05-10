@@ -8,6 +8,12 @@ CUR_DIR=$(cd $(dirname $BASH_SOURCE); pwd)
 MemTotal=$(free -m | grep Mem | awk '{print  $2}')
 CPUS=$(grep processor /proc/cpuinfo | wc -l)
 
+if [[ ${INSSTACK} == "upgrade" ]]; then
+    INSTITLE="升级"
+else
+    INSTITLE="安装"
+fi
+
 CMAKE_VER=3.13.2
 PYTHON_VER=3.7.2
 NODEJS_VER=10.15.3
@@ -72,7 +78,7 @@ echo_info() {
 }
 
 ins_begin() {
-    echo -e "\e[0;34m[+] 开始安装 ${1-$MODULE_NAME}...\e[0m"
+    echo -e "\e[0;34m[+] 开始${INSTITLE} ${1-$MODULE_NAME}...\e[0m"
 }
 
 get_module_ver() {
@@ -90,9 +96,9 @@ get_module_ver() {
 ins_end() {
     get_module_ver $1
     if [ -n "${MODULE_VER}" ]; then
-        echo_green "[√] ${1-$MODULE_NAME} 安装成功! 当前版本：${MODULE_VER}"
+        echo_green "[√] ${1-$MODULE_NAME} ${INSTITLE}成功! 当前版本：${MODULE_VER}"
     else
-        echo_red "[x] ${1-$MODULE_NAME} 安装失败! "
+        echo_red "[x] ${1-$MODULE_NAME} ${INSTITLE}失败! "
     fi
 }
 
@@ -126,10 +132,11 @@ set_time_zone() {
 
 set_host_name() {
     echo_blue "[+] 修改 Hostname..."
-    if [[ ${INSSTACK} == "auto" ]]; then
-        HOST_NAME="myServer"
-    else
+    if [[ ${INSSTACK} != "auto" ]]; then
         read -r -p "请输入 Hostname: " HOST_NAME
+    fi
+    if [ -z "${HOST_NAME}" ]; then
+        HOST_NAME="myServer"
     fi
     echo "hostname=\"${HOST_NAME}\"" >> /etc/sysconfig/network
     echo "" > /etc/hostname
@@ -358,10 +365,8 @@ install_zsh() {
     yum install -y zsh
     chsh -s /bin/zsh
 
-    echo_yellow "是否安装 oh my zsh?"
-    if [[ ${INSSTACK} == "auto" ]]; then
-        INSOHMYZSH="N"
-    else
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "是否安装 oh my zsh?"
         read -r -p "是(Y)/否(N): " INSOHMYZSH
     fi
     if [[ ${INSOHMYZSH} == "y" || ${INSOHMYZSH} == "Y" ]]; then
@@ -680,10 +685,8 @@ install_python3() {
     ln -sf /usr/local/python3.7/bin/pip3 /usr/local/bin/pip3
     pip3 install --upgrade pip
 
-    echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
-    if [[ ${INSSTACK} == "auto" ]]; then
-        echo_blue "自动安装，不设置 Python3 为默认环境"
-    else
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
         read -r -p "是(Y)/否(N): " DEFPYH
         if [[ ${DEFPYH} == "y" || ${DEFPYH} == "Y" ]]; then
             # rm -r /usr/bin/python
@@ -809,10 +812,9 @@ install_mysql() {
     # yum install -y mysql-community-server
     ins_begin
 
-    echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
-    if [[ ${INSSTACK} == "auto" ]]; then
-        DBROOTPWD=""
-    else
+    
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
         read -r -p "密码: " DBROOTPWD
     fi
     if [[ ${DBROOTPWD} == "" ]]; then
@@ -1051,10 +1053,8 @@ EOF
     # /usr/local/mysql/bin/mysql -e "UPDATE mysql.user SET authentication_string=PASSWORD('${DBROOTPWD}') WHERE User='root';"
     /usr/local/mysql/bin/mysql -e "FLUSH PRIVILEGES;" -uroot -p${DBROOTPWD}
 
-    echo_yellow "是否生成 ~/.my.cnf（如选择是，在命令行可以不用密码进入MySQL）? "
-    if [[ ${INSSTACK} == "auto" ]]; then
-        ADDMYCNF="N"
-    else
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "是否生成 ~/.my.cnf（如选择是，在命令行可以不用密码进入MySQL）? "
         read -r -p "是(Y)/否(N): " ADDMYCNF
     fi
     if [[ ${ADDMYCNF} == "y" || ${ADDMYCNF} == "Y" ]]; then
@@ -1363,7 +1363,8 @@ install_php() {
         return
     fi
 
-    mkdir libzip-1.5.1/build && cd libzip-1.5.1/build
+    mkdir libzip-1.5.1/build 
+    cd libzip-1.5.1/build
     cmake ..
     make 2>/root/make-libzip.err.log && make install || echo "libzip 源码编译不成功，${MODULE_NAME} 安装失败！" >> /root/install-error.log
     cd ../..
@@ -1444,7 +1445,7 @@ EOF
     rm -f /usr/local/php/conf.d/*
 
     mkdir -p /usr/local/php/{etc,conf.d}
-    cp php.ini-production /usr/local/php/etc/php.ini
+    cp php-${PHP_VER}/php.ini-production /usr/local/php/etc/php.ini
 
     # php extensions
     sed -i "s/post_max_size =.*/post_max_size = 50M/g" /usr/local/php/etc/php.ini
@@ -1463,11 +1464,11 @@ EOF
         sed -i "s/memory_limit =.*/memory_limit = 256M/g" /usr/local/php/etc/php.ini
     fi
 
-    echo_yellow "是否启用 Opcache? "
-    if [[ ${INSSTACK} == "auto" ]]; then
-        OPCACHE="Y"
-    else
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "是否启用 Opcache? "
         read -r -p "是(Y)/否(N): " OPCACHE
+    else
+        OPCACHE="Y"
     fi
     if [[ ${OPCACHE} == "y" || ${OPCACHE} == "Y" ]]; then
         sed -i "s/;opcache.enable=1/opcache.enable=1/g" /usr/local/php/etc/php.ini
@@ -1478,24 +1479,22 @@ EOF
         sed -i "s/;opcache.revalidate_freq=.*/opcache.revalidate_freq=0/g" /usr/local/php/etc/php.ini
         echo "zend_extension=opcache.so" >> /usr/local/php/etc/php.ini
 
-        echo_yellow "当前服务器是否生产服务器（如选择是，每次更新 PHP 代码后请重启 php-fpm）? "
-        if [[ ${INSSTACK} == "auto" ]]; then
-            PHPPROD="Y"
-        else
+        if [[ ${INSSTACK} != "auto" ]]; then
+            echo_yellow "当前服务器是否生产服务器（如选择是，每次更新 PHP 代码后请重启 php-fpm）? "
             read -r -p "是(Y)/否(N): " PHPPROD
+        else
+            PHPPROD="Y"
         fi
         if [[ ${PHPPROD} == "y" || ${PHPPROD} == "Y" ]]; then
             sed -i "s/;opcache.validate_timestamps=.*/opcache.validate_timestamps=0/g" /usr/local/php/etc/php.ini
         fi
     fi
 
-    echo_yellow "是否限制PHP访问目录(如限制，可能会造成系统缓存影响)?"
-    if [[ ${INSSTACK} == "auto" ]]; then
-        SETOPENBASEDIR="N"
-    else
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "是否限制PHP访问目录(如限制，可能会造成系统缓存影响)?"
         read -r -p "是(Y)/否(N): " SETOPENBASEDIR
     fi
-    if [[ ${SETOPENBASEDIR} = "y" || ${SETOPENBASEDIR} = "Y" ]]; then
+    if [[ ${SETOPENBASEDIR} == "y" || ${SETOPENBASEDIR} == "Y" ]]; then
         echo_blue "默认允许目录: ${INSHOME}/wwwroot /tmp"
         read -r -p "如要允许更多目录，请输入后回车(多个目录请用:隔开): " ALLOWPHPDIR
         if [[ ${ALLOWPHPDIR} != "" ]]; then
@@ -1507,10 +1506,8 @@ EOF
     pear config-set php_ini /usr/local/php/etc/php.ini
     pecl config-set php_ini /usr/local/php/etc/php.ini
 
-    echo_yellow "是否安装 Composer? "
-    if [[ ${INSSTACK} == "auto" ]]; then
-        echo_blue "自动安装，跳过安装 Composer"
-    else
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "是否安装 Composer? "
         read -r -p "是(Y)/否(N): " INSCPR
         if [[ ${INSCPR} == "y" || ${INSCPR} == "Y" ]]; then
             ins_begin "Composer"
@@ -1550,7 +1547,7 @@ EOF
     sed -i "s#pm.min_spare_servers.*#pm.min_spare_servers = $(($MemTotal/2/40))#" /usr/local/php/etc/php-fpm.conf
     sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = $(($MemTotal/2/20))#" /usr/local/php/etc/php-fpm.conf
 
-    cp sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
+    cp php-${PHP_VER}/sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
     sed -i '20 s/^/log_success_msg(){\n\tprintf "%-58s \\033[32m[ %s ]\\033[0m\\n" "\$@"\n}\nlog_failure_msg(){\n\tprintf "%-58s \\033[31m[ %s ]\\033[0m\\n" "\$@"\n}\nlog_warning_msg(){\n\tprintf "%-58s \\033[33m[ %s ]\\033[0m\\n" "\$@"\n}\n/' /etc/init.d/php-fpm
     sed -i 's/echo -n "/title="/g'  /etc/init.d/php-fpm
     sed -i 's/php-fpm "/php-fpm: "/g'  /etc/init.d/php-fpm
@@ -1595,10 +1592,8 @@ EOF
         fi
     fi
 
-    echo_yellow "是否安装 MySQL 扩展（不建议安装，请使用最新版如 MySQLi 扩展）? "
-    if [[ ${INSSTACK} == "auto" ]]; then
-        echo_blue "自动安装，跳过安装 MySQL 扩展"
-    else
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "是否安装 MySQL 扩展（不建议安装，请使用最新版如 MySQLi 扩展）? "
         read -r -p "是(Y)/否(N): " PHPMYSQL
         if [[ ${PHPMYSQL} == "y" || ${PHPMYSQL} == "Y" ]]; then
             wget -c --no-cookie "http://git.php.net/?p=pecl/database/mysql.git;a=snapshot;h=647c933b6cc8f3e6ce8a466824c79143a98ee151;sf=tgz" -O php-mysql.tar.gz
@@ -1623,13 +1618,11 @@ EOF
 install_redis() {
     ins_begin
 
-    echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
-    if [[ ${INSSTACK} == "auto" ]]; then
-        REDISPWD=""
-    else
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
         read -r -p "密码: " REDISPWD
     fi
-    if [[ ${REDISPWD} == "" ]]; then
+    if [[ -z ${REDISPWD} ]]; then
         echo_red "没有输入密码，将采用默认密码。"
         REDISPWD=$(echo "zsenClub#$RANDOM" | md5sum | cut -d " " -f 1)
     fi
@@ -2095,10 +2088,10 @@ install_shellMonitor() {
 }
 
 register_management-tool() {
-    echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
     if [[ ${INSSTACK} == "auto" ]]; then
         MYNAME="pnmp"
     else
+        echo_yellow "是否要自定义管理工具名称(如不需要，请直接回车)? "
         while :;do
             read -r -p "请输入管理工具名称: " MYNAME
             if [ -z "${MYNAME}" ]; then
@@ -2119,12 +2112,33 @@ register_management-tool() {
     chmod +x /usr/local/bin/${MYNAME}
 }
 
-clean_install_files() {
-    echo_yellow "是否清理安装文件?"
-    if [[ ${INSSTACK} == "auto" ]]; then
-        CLRANINS="Y"
+upgrade_service() {
+    echo_blue "升级 ${MODULE_NAME}..."
+
+    get_module_ver
+    if [ -n "${MODULE_VER}" ]; then
+        echo_green "系统当前版本：${MODULE_VER}"
     else
+        echo_green "系统当前未安装 ${MODULE_NAME}"
+    fi
+    echo_yellow "请输入您要升级的版本(请注意：只需要输入包括数字、小数点的版本号)"
+    read -r -p "输入: " UPDATE_VER
+
+    echo_green "${MODULE_NAME} 版本将由 ${MODULE_VER} 升级到 ${UPDATE_VER}"
+    echo ""
+    echo_yellow "请按任意键开始升级..."
+    OLDCONFIG=$(stty -g)
+    stty -icanon -echo min 1 time 0
+    dd count=1 2>/dev/null
+    stty "${OLDCONFIG}"
+}
+
+clean_install_files() {
+    if [[ ${INSSTACK} != "auto" ]]; then
+        echo_yellow "是否清理安装文件?"
         read -r -p "全部(A)是(Y)/否(N): " CLRANINS
+    else
+        CLRANINS="Y"
     fi
     if [[ ${CLRANINS} == "y" || ${CLRANINS} == "Y" ]]; then
         echo_blue "正在清理安装编译文件..."
@@ -2174,10 +2188,8 @@ clean_install() {
     fi
 
     if [[ ${INSNGINX} == "y" || ${INSNGINX} == "Y" ]]; then
-        echo_yellow "是否要添加默认站点? "
-        if [[ ${INSSTACK} == "auto" ]]; then
-            echo_blue "自动化脚本不添加默认站点"
-        else
+        if [[ ${INSSTACK} != "auto" ]]; then
+            echo_yellow "是否要添加默认站点? "
             read -r -p "是(Y)/否(N): " ADDHOST
             if [[ ${ADDHOST} == "y" || ${ADDHOST} == "Y" ]]; then
                 ${MYNAME} restart
@@ -2216,8 +2228,75 @@ cd "${CUR_DIR}/src" || exit
 yum -y update
 yum -y upgrade
 
-if ! grep /usr/local/bin ~/.bashrc ; then
+if ! grep /usr/local/bin ~/.bashrc 1>/dev/null; then
     echo "export PATH=/usr/local/bin:\$PATH" >> ~/.bashrc
+fi
+
+if [[ ${INSSTACK} == "upgrade" ]]; then
+    echo_yellow "请选择要更新的服务?"
+    echo_blue "0 CMake"
+    echo_blue "1 Git"
+    echo_blue "2 Vim"
+    echo_blue "3 Python3"
+    echo_blue "4 Redis"
+    echo_blue "5 PHP"
+    echo_blue "6 MySQL"
+    echo_blue "7 NodeJS"
+    echo_blue "8 Nginx"
+    echo_blue "9 Tomcat"
+    read -r -p "请选择数字: " UPDATE
+
+    case "${UPDATE}" in
+        0)
+            MODULE_NAME="CMake"
+            ;;
+        1)
+            MODULE_NAME="Git"
+            ;;
+        2)
+            MODULE_NAME="Vim"
+            ;;
+        3)
+            MODULE_NAME="Python3"
+            ;;
+        4)
+            MODULE_NAME="Redis"
+            ;;
+        5)
+            MODULE_NAME="PHP"
+            ;;
+        6)
+            MODULE_NAME="MySQL"
+            ;;
+        7)
+            MODULE_NAME="NodeJS"
+            ;;
+        8)
+            MODULE_NAME="Nginx"
+            ;;
+        9)
+            MODULE_NAME="Tomcat"
+            ;;
+        *)
+            echo_red "所选服务错误，退出升级系统！"
+            exit 1
+            ;;
+    esac
+    upgrade_service
+    echo_green "测试功能，暂未实现！"
+
+    exit 0
+fi
+
+
+if [[ ${MemTotal} -lt 1024 ]]; then
+    echo_blue "内存过低，创建 SWAP 交换区..."
+    dd if=/dev/zero of=/swapfile bs=1M count=2048  # 获取要增加的2G的SWAP文件块
+    chmod 0600 /swapfile
+    mkswap /swapfile  # 创建SWAP文件
+    swapon /swapfile  # 激活SWAP文件
+    swapon -s  # 查看SWAP信息是否正确
+    # echo "/swapfile swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
 fi
 
 echo_blue "========= 基本信息 ========="
@@ -2235,28 +2314,8 @@ df -h
 echo ""
 echo_blue "========= 系统安装 ========="
 
-if [[ ${MemTotal} -lt 1024 ]]; then
-    echo_blue "内存过低，创建 SWAP 交换区..."
-    dd if=/dev/zero of=/swapfile bs=1M count=2048  # 获取要增加的2G的SWAP文件块
-    chmod 0600 /swapfile
-    mkswap /swapfile  # 创建SWAP文件
-    swapon /swapfile  # 激活SWAP文件
-    swapon -s  # 查看SWAP信息是否正确
-    # echo "/swapfile swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
-fi
-
-echo_yellow "是否调整时区?"
-if [[ ${INSSTACK} == "auto" ]]; then
-    SETTIMEZONE="Y"
-else
-    read -r -p "是(Y)/否(N): " SETTIMEZONE
-fi
-if [[ ${SETTIMEZONE} == "y" || ${SETTIMEZONE} == "Y" ]]; then
-    set_time_zone
-fi
-
-echo_yellow "请输入安装目录（比如 /home 或 /data），默认 /data"
 if [[ ${INSSTACK} != "auto" ]]; then
+    echo_yellow "请输入安装目录（比如 /home 或 /data），默认 /data"
     read -r -p "请输入: " INSHOME
 fi
 if [ -z "${INSHOME}" ]; then
@@ -2271,202 +2330,190 @@ check_hosts
 
 yum install -y wget gcc make curl unzip
 
-echo_yellow "是否修改 HostName?"
-if [[ ${INSSTACK} == "auto" ]]; then
-    SETHOST="Y"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    echo_yellow "是否调整时区?"
+    read -r -p "是(Y)/否(N): " SETTIMEZONE
+fi
+if [[ ${SETTIMEZONE} == "y" || ${SETTIMEZONE} == "Y" ]]; then
+    set_time_zone
+fi
+
+if [[ ${INSSTACK} != "auto" ]]; then
+    echo_yellow "是否修改 HostName?"
     read -r -p "是(Y)/否(N): " SETHOST
+else
+    SETHOST="Y"
 fi
 if [[ ${SETHOST} == "y" || ${SETHOST} == "Y" ]]; then
     set_host_name
 fi
 
-echo_yellow "是否添加用户?"
-if [[ ${INSSTACK} == "auto" ]]; then
-    echo_blue "自动脚本跳过添加用户"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    echo_yellow "是否添加用户?"
     read -r -p "是(Y)/否(N): " ADDUSER
-    if [[ ${ADDUSER} == "y" || ${ADDUSER} == "Y" ]]; then
-        add_user
-    fi
+fi
+if [[ ${ADDUSER} == "y" || ${ADDUSER} == "Y" ]]; then
+    add_user
 fi
 
-echo_yellow "是否修改 SSH 配置?"
-if [[ ${INSSTACK} == "auto" ]]; then
-    echo_blue "自动脚本跳过修改 SSH 配置"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    echo_yellow "是否修改 SSH 配置?"
     read -r -p "是(Y)/否(N): " SETSSH
-    if [[ ${SETSSH} == "y" || ${SETSSH} == "Y" ]]; then
-        ssh_setting
-    fi
 fi
-
-MODULE_NAME="CMake"
-show_ver
-if [[ ${MODULE_VER} != "" ]]; then
-    if [[ ${INSSTACK} == "auto" ]]; then
-        INSCMAKE="Y"
-    else
-        read -r -p "是(Y)/否(N): " INSCMAKE
-    fi
-    if [[ ${INSCMAKE} == "y" || ${INSCMAKE} == "Y" ]]; then
-        install_cmake
-    fi
-else
-    install_cmake
-fi
-
-MODULE_NAME="Git"
-show_ver
-if [[ ${MODULE_VER} != "" ]]; then
-    if [[ ${INSSTACK} == "auto" ]]; then
-        INSGIT="Y"
-    else
-        read -r -p "是(Y)/否(N): " INSGIT
-    fi
-    if [[ ${INSGIT} == "y" || ${INSGIT} == "Y" ]]; then
-        install_git
-    fi
-else
-    install_git
+if [[ ${SETSSH} == "y" || ${SETSSH} == "Y" ]]; then
+    ssh_setting
 fi
 
 MODULE_NAME="ZSH"
-show_ver
-if [[ ${MODULE_VER} != "" ]]; then
-    if [[ ${INSSTACK} == "auto" ]]; then
-        INSZSH="Y"
-    else
-        read -r -p "是(Y)/否(N): " INSZSH
-    fi
-    if [[ ${INSZSH} == "y" || ${INSZSH} == "Y" ]]; then
-        install_zsh
-    fi
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
+    read -r -p "是(Y)/否(N): " INSZSH
 else
+    INSZSH="Y"
+fi
+if [[ ${INSZSH} == "y" || ${INSZSH} == "Y" ]]; then
     install_zsh
 fi
 
-MODULE_NAME="Vim"
-show_ver
-if [[ ${INSSTACK} == "auto" ]]; then
-    INSVIM="Y"
+MODULE_NAME="Git"
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
+    read -r -p "是(Y)/否(N): " INSCMAKE
 else
+    INSGIT="Y"
+fi
+if [[ ${INSGIT} == "y" || ${INSGIT} == "Y" ]]; then
+    install_git
+fi
+
+MODULE_NAME="CMake"
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
+    read -r -p "是(Y)/否(N): " INSCMAKE
+else
+    INSCMAKE="Y"
+fi
+if [[ ${INSCMAKE} == "y" || ${INSCMAKE} == "Y" ]]; then
+    install_cmake
+fi
+
+MODULE_NAME="Vim"
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
     read -r -p "是(Y)/否(N): " INSVIM
+else
+    INSVIM="Y"
 fi
 if [[ ${INSVIM} == "y" || ${INSVIM} == "Y" ]]; then
     install_vim
 fi
 
 MODULE_NAME="Python3"
-show_ver
-if [[ ${INSSTACK} == "auto" ]]; then
-    INSPYTHON3="Y"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
     read -r -p "是(Y)/否(N): " INSPYTHON3
+else
+    INSPYTHON3="Y"
 fi
 if [[ ${INSPYTHON3} == "y" || ${INSPYTHON3} == "Y" ]]; then
     install_python3
-    install_uwsgi
 fi
 
 MODULE_NAME="Redis"
-show_ver
-if [[ ${INSSTACK} == "auto" ]]; then
-    INSREDIS="Y"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
     read -r -p "是(Y)/否(N): " INSREDIS
+else
+    INSREDIS="Y"
 fi
 if [[ ${INSREDIS} == "y" || ${INSREDIS} == "Y" ]]; then
     install_redis
 fi
 
 MODULE_NAME="PHP"
-show_ver
-if [[ ${INSSTACK} == "auto" ]]; then
-    INSPHP="Y"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
     read -r -p "是(Y)/否(N): " INSPHP
+else
+    INSPHP="Y"
 fi
 if [[ ${INSPHP} == "y" || ${INSPHP} == "Y" ]]; then
     install_php
 fi
 
 MODULE_NAME="MySQL"
-show_ver
-if [[ ${INSSTACK} == "auto" ]]; then
-    INSMYSQL="Y"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
     read -r -p "是(Y)/否(N): " INSMYSQL
+else
+    INSMYSQL="Y"
 fi
 if [[ ${INSMYSQL} == "y" || ${INSMYSQL} == "Y" ]]; then
     install_mysql
 fi
 
 MODULE_NAME="NodeJS"
-show_ver
-if [[ ${INSSTACK} == "auto" ]]; then
-    INSNODEJS="Y"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
     read -r -p "是(Y)/否(N): " INSNODEJS
+else
+    INSNODEJS="Y"
 fi
 if [[ ${INSNODEJS} == "y" || ${INSNODEJS} == "Y" ]]; then
     install_nodejs
 fi
 
 MODULE_NAME="Nginx"
-show_ver
-if [[ ${INSSTACK} == "auto" ]]; then
-    INSNGINX="Y"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
     read -r -p "是(Y)/否(N): " INSNGINX
+else
+    INSNGINX="Y"
 fi
 if [[ ${INSNGINX} == "y" || ${INSNGINX} == "Y" ]]; then
     install_nginx
 fi
 
 MODULE_NAME="Tomcat"
-show_ver
-if [[ ${INSSTACK} == "auto" ]]; then
-    INSTOMCAT="Y"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    show_ver
     read -r -p "是(Y)/否(N): " INSTOMCAT
+else
+    INSTOMCAT="Y"
 fi
 if [[ ${INSTOMCAT} == "y" || ${INSTOMCAT} == "Y" ]]; then
     install_tomcat
 fi
 
-echo_yellow "是否设置 SMTP 发送邮件?"
-echo_blue "提示：阿里云/腾讯云服务器封掉了 25 端口，默认方式发送邮件不成功(可以申请解封)"
-if [[ ${INSSTACK} == "auto" ]]; then
-    SETSMTP="N"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    echo_yellow "是否设置 SMTP 发送邮件?"
+    echo_blue "提示：阿里云/腾讯云服务器封掉了 25 端口，默认方式发送邮件不成功(可以申请解封)"
     read -r -p "是(Y)/否(N): " SETSMTP
 fi
 if [[ ${SETSMTP} == "y" || ${SETSMTP} == "y" ]]; then
     setting_sendmail_conf
 fi
 
-echo_yellow "是否安装 shellMonitor 系统监控工具?"
-if [[ ${INSSTACK} == "auto" ]]; then
-    INSMONITOR="N"
-else
+if [[ ${INSSTACK} != "auto" ]]; then
+    echo_yellow "是否安装 shellMonitor 系统监控工具?"
     read -r -p "是(Y)/否(N): " INSMONITOR
 fi
 if [[ ${INSMONITOR} == "y" || ${INSMONITOR} == "y" ]]; then
     install_shellMonitor
 fi
 
-echo_yellow "是否启用防火墙(默认启用)?"
-if [[ ${INSSTACK} == "auto" ]]; then
-    FIREWALL="Y"
-else
+
+if [[ ${INSSTACK} != "auto" ]]; then
+    echo_yellow "是否启用防火墙(默认启用)?"
     read -r -p "是(Y)/否(N): " FIREWALL
+else
+    FIREWALL="Y"
 fi
-if [[ ${FIREWALL} == "n" || ${FIREWALL} == "N" ]]; then
+if [[ ${FIREWALL} == "y" || ${FIREWALL} == "Y" ]]; then
+    systemctl enable firewalld
+else
     systemctl stop firewalld
     systemctl disable firewalld
-else
-    systemctl enable firewalld
 fi
 
 register_management-tool
