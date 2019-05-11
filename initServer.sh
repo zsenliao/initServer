@@ -24,6 +24,7 @@ MCRYPT_VER=1.0.2
 REDIS_VER=5.0.3
 MYSQL_VER=5.7.21
 TOMCAT_VER=9.0.8
+HTOP_VER=2.2.0
 
 get_server_ip() {
     local CURLTXT
@@ -118,12 +119,13 @@ show_ver() {
 
 wget_cache() {
     if [ ! -f "$2" ]; then
-        if ! wget -c "$1" -O "$2" 2>/root/install-error.log; then
+        if ! wget -c "$1" -O "$2"; then
             rm -f "$2"
+            echo "${3-$MODULE_NAME} 下载失败!" >> /root/install-error.log
             echo_red "${3-$MODULE_NAME} 下载失败! 请输入新的地址后回车重新下载:"
             echo_blue "当前下载地址: $1"
             read -r -p "请输入新的下载地址: " downloadUrl
-            wget "${downloadUrl}" -O "$2" 2>/root/install-error.log
+            wget "${downloadUrl}" -O "$2"
         fi
     fi
 }
@@ -421,6 +423,15 @@ install_vim() {
 
     wget -O ~/.vim/syntax/python.wim https://www.vim.org/scripts/download_script.php?src_id=21056
     echo "au BufNewFile,BufRead *.py setf python" >> ~/.vim/filetype.vim
+}
+
+install_htop() {
+    wget_cache "https://hisham.hm/htop/releases/${HTOP_VER}/htop-${HTOP_VER}.tar.gz" "htop-${HTOP_VER}.tar.gz"
+    tar zxf htop-${HTOP_VER}.tar.gz || return 255
+    cd htop-${HTOP_VER}
+    ./configure
+    make && make install
+    cd ..
 }
 
 install_cmake() {
@@ -2307,7 +2318,7 @@ if [[ ${SETSSH} == "y" || ${SETSSH} == "Y" ]]; then
 fi
 
 
-for module in "ZSH" "Git" "Vim" "CMake" "MySQL" "Redis" "Python3"  "PHP" "NodeJS" "Nginx" "Java"; do
+for module in "ZSH" "Htop" "Git" "Vim" "CMake" "MySQL" "Redis" "Python3"  "PHP" "NodeJS" "Nginx" "Java"; do
     MODULE_NAME=${module}
     if [[ ${INSSTACK} != "auto" ]]; then
         show_ver
