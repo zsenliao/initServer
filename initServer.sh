@@ -15,7 +15,7 @@ else
 fi
 
 CMAKE_VER=3.13.2
-PYTHON_VER=3.7.2
+PYTHON3_VER=3.7.2
 NODEJS_VER=10.15.3
 STARTSTOPDAEMON_VER=1.17.27
 NGINX_VER=1.15.6
@@ -82,12 +82,16 @@ ins_begin() {
 }
 
 get_module_ver() {
-    MODULE_CLI=$(echo ${1-$MODULE_NAME} | tr 'A-Z' 'a-z')
+    MODULE_CLI=$(echo ${1-$MODULE_NAME} | tr '[:upper:]' '[:lower:]')
 
     if [[ $MODULE_CLI == "nginx" ]]; then
         command -v nginx 1>/dev/null && MODULE_VER=$(cat /usr/local/nginx/version.txt 2>/dev/null || echo "8.8.8.8") || MODULE_VER=""
     elif [[ $MODULE_CLI == "vim" ]]; then
         MODULE_VER=$(echo $(vim --version 2>/dev/null) | awk -F ')' '{print $1}')
+    elif [[ $MODULE_CLI == "redis" ]]; then
+        MODULE_VER=$(redis-server --version 2>/dev/null)
+    elif [[ $MODULE_CLI == "nodejs" ]]; then
+        MODULE_VER=$(node --version 2>/dev/null)
     else
         MODULE_VER=$(${MODULE_CLI} --version 2>/dev/null)
     fi
@@ -114,12 +118,12 @@ show_ver() {
 
 wget_cache() {
     if [ ! -f "$2" ]; then
-        if ! wget -c "$1" -O "$2" 2>/root/wget-${3-$MODULE_NAME}.err.log; then
+        if ! wget -c "$1" -O "$2" 2>/root/install-error.log; then
             rm -f "$2"
             echo_red "${3-$MODULE_NAME} 下载失败! 请输入新的地址后回车重新下载:"
             echo_blue "当前下载地址: $1"
             read -r -p "请输入新的下载地址: " downloadUrl
-            wget "${downloadUrl}" -O "$2" 2>/root/wget-${3-$MODULE_NAME}.err.log
+            wget "${downloadUrl}" -O "$2" 2>/root/install-error.log
         fi
     fi
 }
@@ -342,26 +346,21 @@ ssh_setting() {
 }
 
 install_git() {
-    ins_begin
     yum install -y autoconf zlib-devel curl-devel openssl-devel perl cpio expat-devel gettext-devel openssl zlib gcc perl-ExtUtils-MakeMaker
 
     wget_cache "https://github.com/git/git/archive/master.tar.gz" "git-master.tar.gz"
-    if ! tar xzf git-master.tar.gz; then
-        echo "${MODULE_NAME} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    tar xzf git-master.tar.gz || return 255
 
     cd git-master
     make configure && ./configure --prefix=/usr/local
-    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME} 源码编译不成功，安装失败！" >> /root/install-error.log
+    make -j ${CPUS} && make install || make_result="fail"
     cd ..
-
-    ins_end
+    if [[ $make_result == "fail" ]]; then
+        return 1
+    fi
 }
 
 install_zsh() {
-    ins_begin
     yum install -y zsh
     chsh -s /bin/zsh
 
@@ -384,31 +383,21 @@ install_zsh() {
     echo 'alias cls="clear"' >> ~/.zshrc
     echo 'alias grep="grep --color"' >> ~/.zshrc
     echo "export PATH=/usr/local/bin:\$PATH" >> ~/.zshrc
-
-    ins_end
 }
 
 install_vim() {
-    echo_blue "[+] 升级 ${MODULE_NAME}..."
-
     wget_cache "https://github.com/vim/vim/archive/master.tar.gz" "vim-master.tar.gz"
-    if ! tar zxf vim-master.tar.gz; then
-        echo "${MODULE_NAME} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    tar zxf vim-master.tar.gz || return 255
 
     yum uninstall -y vim
     yum remove -y vim
     yum install -y ncurses-devel
 
     cd vim-master/src
-    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME} 源码编译不成功，安装失败！" >> /root/install-error.log
+    make -j && make install || make_result="fail"
     cd ../..
-
-    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
-        ins_end
-        return
+    if [[ $make_result == "fail" ]]; then
+        return 1
     fi
 
     echo_blue "[+] 安装 vim 插件..."
@@ -432,19 +421,11 @@ install_vim() {
 
     wget -O ~/.vim/syntax/python.wim https://www.vim.org/scripts/download_script.php?src_id=21056
     echo "au BufNewFile,BufRead *.py setf python" >> ~/.vim/filetype.vim
-
-    ins_end
 }
 
 install_cmake() {
-    ins_begin
-
     wget_cache "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VER}/cmake-${CMAKE_VER}.tar.gz" "cmake-${CMAKE_VER}.tar.gz"
-    if ! tar zxf cmake-${CMAKE_VER}.tar.gz; then
-        echo "${MODULE_NAME}-${CMAKE_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    tar zxf cmake-${CMAKE_VER}.tar.gz || return 255
 
     rpm -q cmake
     yum remove -y cmake
@@ -452,10 +433,11 @@ install_cmake() {
 
     cd cmake-${CMAKE_VER}
     ./bootstrap
-    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME} 源码编译不成功，安装失败！" >> /root/install-error.log
+    make -j ${CPUS} && make install || make_result="fail"
     cd ..
-
-    ins_end
+    if [[ $make_result == "fail" ]]; then
+        return 1
+    fi
 }
 
 install_acme() {
@@ -653,24 +635,17 @@ EOF
 }
 
 install_python3() {
-    ins_begin
     yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
 
-    wget_cache "https://www.python.org/ftp/python/${PYTHON_VER}/Python-${PYTHON_VER}.tgz" "Python-${PYTHON_VER}.tgz"
-    if ! tar xf Python-${PYTHON_VER}.tgz; then
-        echo "${MODULE_NAME}-${PYTHON_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    wget_cache "https://www.python.org/ftp/python/${PYTHON3_VER}/Python-${PYTHON3_VER}.tgz" "Python-${PYTHON3_VER}.tgz"
+    tar xf Python-${PYTHON3_VER}.tgz || return 255
 
-    cd Python-${PYTHON_VER}
+    cd Python-${PYTHON3_VER}
     ./configure --prefix=/usr/local/python3.7 --enable-optimizations
-    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${PYTHON_VER} 源码编译失败，退出当前安装！" >> /root/install-error.log
+    make -j ${CPUS} && make install || make_result="fail"
     cd ..
-
-    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
-        ins_end
-        return
+    if [[ $make_result == "fail" ]]; then
+        return 1
     fi
 
     ln -sf /usr/local/python3.7/bin/python3 /usr/local/bin/python3
@@ -684,6 +659,7 @@ install_python3() {
     curl https://bootstrap.pypa.io/get-pip.py | python3
     ln -sf /usr/local/python3.7/bin/pip3 /usr/local/bin/pip3
     pip3 install --upgrade pip
+    install_uwsgi
 
     if [[ ${INSSTACK} != "auto" ]]; then
         echo_yellow "[!] 是否将 Python3 设置为默认 Python 解释器: "
@@ -697,12 +673,6 @@ install_python3() {
             ln -sf /usr/local/bin/pip3 /usr/local/bin/pip
         fi
     fi
-
-    install_uwsgi
-
-    ins_end
-    echo_green "\tpip版本：$(pip3 --version)"
-    echo_green "\tuWsgi版本：$(uwsgi --version)"
 }
 
 install_ikev2() {
@@ -788,31 +758,21 @@ install_ikev2() {
 }  # TODO
 
 install_nodejs() {
-    ins_begin
     wget_cache "https://nodejs.org/dist/v${NODEJS_VER}/node-v${NODEJS_VER}-linux-x64.tar.xz" "node-v${NODEJS_VER}-linux-x64.tar.xz"
-    if ! tar -xf node-v${NODEJS_VER}-linux-x64.tar.xz; then
-        echo "${MODULE_NAME}-${NODEJS_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    tar -xf node-v${NODEJS_VER}-linux-x64.tar.xz || return 255
 
     mv node-v${NODEJS_VER}-linux-x64 /usr/local/node
     chown root:root -R /usr/local
     ln -sf /usr/local/node/bin/node /usr/local/bin/node
     ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
     ln -sf /usr/local/node/bin/npx /usr/local/bin/npx
-
-    ins_end
-    echo_green "\tnpm版本：$(npm --version)"
 }
 
 install_mysql() {
     # wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
     # rpm -Uvh mysql57-community-release-el7-11.noarch.rpm
     # yum install -y mysql-community-server
-    ins_begin
 
-    
     if [[ ${INSSTACK} != "auto" ]]; then
         echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
         read -r -p "密码: " DBROOTPWD
@@ -824,19 +784,25 @@ install_mysql() {
     echo_green "MySQL ROOT 用户密码(请记下来): ${DBROOTPWD}"
 
     wget_cache "http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz" "boost_1_59_0.tar.gz" "Boost"
-    if ! tar zxf boost_1_59_0.tar.gz; then
-        echo "Boost-1.59.0 源码包下载失败，退出 MySQL 安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    tar zxf boost_1_59_0.tar.gz || return 255
+
     mv boost_1_59_0 /usr/local/boost
     chown root:root -R /usr/local/boost
 
     wget_cache "https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQL_VER}.tar.gz" "mysql-${MYSQL_VER}.tar.gz"
-    if ! tar zxf mysql-${MYSQL_VER}.tar.gz; then
-        echo "${MODULE_NAME}-${MYSQL_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+    tar zxf mysql-${MYSQL_VER}.tar.gz || return 255
+
+    get_module_ver "cmake"
+    if [ -z "${MODULE_VER}" ]; then
+        MODULE_NAME="CMake"
+        echo_yellow "编译 MySQL 源码需要使用到 CMake!"
+        ins_begin
+        install_cmake
+        if [[ $? == 1 ]]; then
+            return 1
+        fi
         ins_end
-        return
+        MODULE_NAME="MySQL"
     fi
 
     rpm -qa | grep mysql
@@ -861,12 +827,10 @@ install_mysql() {
             -DMYSQL_DATADIR="${MYSQLHOME}" \
             -DDEFAULT_CHARSET=utf8mb4 \
             -DDEFAULT_COLLATION=utf8mb4_general_ci
-    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${MYSQL_VER} 源码编译不成功，安装失败！" >> /root/install-error.log
+    make -j ${CPUS} && make install || make_result="fail"
     cd ..
-
-    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
-        ins_end
-        return
+    if [[ $make_result == "fail" ]]; then
+        return 1
     fi
 
     chgrp -R mysql /usr/local/mysql/.
@@ -1066,12 +1030,11 @@ password = ${DBROOTPWD}
 EOF
         chmod 0400 /root/.my.cnf
     fi
-
-    ins_end
 }
 
 install_start-stop-daemon() {
     ins_begin "start-stop-daemon"
+
     yum install -y ncurses-devel
     wget_cache "http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${STARTSTOPDAEMON_VER}.tar.xz" "start-stop-daemon_${STARTSTOPDAEMON_VER}.tar.xz" "start-stop-daemon"
     mkdir start-stop-daemon_${STARTSTOPDAEMON_VER}
@@ -1083,14 +1046,13 @@ install_start-stop-daemon() {
 
     cd start-stop-daemon_${STARTSTOPDAEMON_VER}
     ./configure
-    make 2>/root/make-start-stop-daemon.err.log  && make install || echo "start-stop-daemon-${STARTSTOPDAEMON_VER} 源码编译失败，会影响 Nginx 服务！" >> /root/install-error.log
+    make && make install || echo "start-stop-daemon-${STARTSTOPDAEMON_VER} 源码编译失败，会影响 Nginx 服务！" >> /root/install-error.log
     cd ..
 
     ins_end "start-stop-daemon"
 }
 
 install_nginx() {
-    ins_begin "Nginx"
     rpm -qa | grep httpd
     rpm -e httpd httpd-tools --nodeps
     yum remove -y httpd*
@@ -1105,20 +1067,11 @@ install_nginx() {
     cd ..
 
     wget_cache "https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz" "OpenSSL_1_1_1.tar.gz" "OpenSSL"
-    if ! tar xzf OpenSSL_1_1_1.tar.gz; then
-        echo "OpenSSL-1.1.1 源码包下载失败，退出 Nginx 安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    tar xzf OpenSSL_1_1_1.tar.gz || return 255
     mv openssl-OpenSSL_1_1_1 openssl
 
     wget_cache "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" "nginx-${NGINX_VER}.tar.gz"
-    if ! tar zxf nginx-${NGINX_VER}.tar.gz; then
-        echo "${MODULE_NAME}-${NGINX_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
-
+    tar zxf nginx-${NGINX_VER}.tar.gz || return 255
     rm -rf /usr/local/nginx
 
     cd nginx-${NGINX_VER}
@@ -1133,12 +1086,10 @@ install_nginx() {
         --without-mail_pop3_module \
         --without-mail_imap_module \
         --without-mail_smtp_module
-    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${NGINX_VER} 源码编译不成功，安装失败！" >> /root/install-error.log
+    make -j ${CPUS} && make install || make_result="fail" 
     cd ..
-
-    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
-        ins_end
-        return
+    if [[ $make_result == "fail" ]]; then
+        return 1
     fi
 
     ln -sf /usr/local/nginx/sbin/nginx /usr/local/bin/nginx
@@ -1344,12 +1295,9 @@ EOF
     chmod +x /etc/init.d/nginx
     chkconfig --add nginx
     chkconfig nginx on
-
-    ins_end
 }
 
 install_php() {
-    ins_begin
     yum -y remove php* libzip
     rpm -qa | grep php
     rpm -e php-mysql php-cli php-gd php-common php --nodeps
@@ -1357,17 +1305,31 @@ install_php() {
     yum install -y libmcrypt libmcrypt-devel mcrypt mhash
 
     wget_cache "https://libzip.org/download/libzip-1.5.1.tar.gz" "libzip-1.5.1.tar.gz" "libzip"
-    if ! tar zxf libzip-1.5.1.tar.gz; then
-        echo "libzip-1.5.1 源码包下载失败，退出 PHP 安装！" >> /root/install-error.log
+    tar zxf libzip-1.5.1.tar.gz || return 255
+
+    get_module_ver "cmake"
+    if [ -z "${MODULE_VER}" ]; then
+        MODULE_NAME="CMake"
+        echo_yellow "编译 PHP 源码需要使用到 CMake!"
+        ins_begin
+        install_cmake
+        if [[ $? == 1 ]]; then
+            return 1
+        fi
         ins_end
-        return
+        MODULE_NAME="PHP"
     fi
 
     mkdir libzip-1.5.1/build 
     cd libzip-1.5.1/build
     cmake ..
-    make 2>/root/make-libzip.err.log && make install || echo "libzip 源码编译不成功，${MODULE_NAME} 安装失败！" >> /root/install-error.log
+    make && make install || make_result="fail"
     cd ../..
+    if [[ $make_result == "fail" ]]; then
+        echo "make libzip failed!" >> /root/install-error.log
+        return 1
+    fi
+    make_result=""
 
     cat > /etc/ld.so.conf.d/php.local.conf<<EOF
 /usr/local/lib64
@@ -1378,11 +1340,7 @@ EOF
     ldconfig
 
     wget_cache "http://cn2.php.net/get/php-${PHP_VER}.tar.gz/from/this/mirror" "php-${PHP_VER}.tar.gz" "PHP"
-    if ! tar zxf php-${PHP_VER}.tar.gz; then
-        echo "${MODULE_NAME}-${PHP_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    tar zxf php-${PHP_VER}.tar.gz || return 255
 
     cd php-${PHP_VER}
     ./configure --prefix=/usr/local/php \
@@ -1429,12 +1387,10 @@ EOF
                 --enable-session
 
     #make ZEND_EXTRA_LIBS='-liconv' && make install
-    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make install || echo "${MODULE_NAME}-${PHP_VER} 源码编译不成功，安装失败！" >> /root/install-error.log
+    make -j ${CPUS} && make install || make_result="fail"
     cd ..
-
-    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
-        ins_end
-        return
+    if [[ $make_result == "fail" ]]; then
+        return 1
     fi
 
     ln -sf /usr/local/php/bin/php /usr/local/bin/php
@@ -1568,12 +1524,12 @@ EOF
 
     wget_cache "http://pecl.php.net/get/mcrypt-${MCRYPT_VER}.tgz" "mcrypt-${MCRYPT_VER}.tgz" "PHP-Mcrypt"
     if ! tar xf mcrypt-${MCRYPT_VER}.tgz; then
-        echo "PHP-Mcrypt-${MCRYPT_VER} 模块源码包下载失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+        echo "PHP-Mcrypt ${MCRYPT_VER} 模块源码包下载失败，PHP 服务将不安装此模块！" >> /root/install-error.log
     else
         cd mcrypt-${MCRYPT_VER}
         phpize
         ./configure --with-php-config=/usr/local/php/bin/php-config
-        make 2>/root/make-php-mcrypt.err.log && make install || echo "PHP-Mcrypt-${MCRYPT_VER} 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+        make && make install
         echo "extension=mcrypt.so" >> /usr/local/php/etc/php.ini
         cd ..
     fi
@@ -1586,7 +1542,7 @@ EOF
             cd phpredis-master
             phpize
             ./configure --with-php-config=/usr/local/php/bin/php-config
-            make 2>/root/make-php-redis.err.log && make install || echo "PHP-Redis 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+            make && make install
             echo "extension=redis.so" >> /usr/local/php/etc/php.ini
             cd ..
         fi
@@ -1604,20 +1560,16 @@ EOF
                 cd php-mysql
                 phpize
                 ./configure  --with-php-config=/usr/local/php/bin/php-config --with-mysql=mysqlnd
-                make 2>/root/make-php-mysql.err.log && make install || echo "PHP-MySQL 模块编译失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+                make && make install
                 echo "extension=mysql.so" >> /usr/local/php/etc/php.ini
                 # sed -i "s/^error_reporting = .*/error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED/g" /usr/local/php/etc/php.ini
                 cd ..
             fi
         fi
     fi
-
-    ins_end
 }
 
 install_redis() {
-    ins_begin
-
     if [[ ${INSSTACK} != "auto" ]]; then
         echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
         read -r -p "密码: " REDISPWD
@@ -1636,19 +1588,13 @@ install_redis() {
     chown -R redis:redis ${REDISHOME}
 
     wget_cache "http://download.redis.io/releases/redis-${REDIS_VER}.tar.gz" "redis-${REDIS_VER}.tar.gz"
-    if ! tar zxf redis-${REDIS_VER}.tar.gz; then
-        echo "${MODULE_NAME}-${REDIS_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    tar zxf redis-${REDIS_VER}.tar.gz || return 255
 
     cd redis-${REDIS_VER}
-    make -j ${CPUS} 2>/root/make-${MODULE_NAME}.err.log && make PREFIX=/usr/local/redis install || echo "${MODULE_NAME}-${REDIS_VER} 源码编译不成功，安装失败！" >> /root/install-error.log
+    make -j ${CPUS} && make PREFIX=/usr/local/redis install || make_result="fail"
     cd ..
-
-    if [[ -z $(cat /root/make-${MODULE_NAME}.err.log 2>/dev/null) ]]; then
-        ins_end
-        return
+    if [[ $make_result == "fail" ]]; then
+        return 1
     fi
 
     cp redis-${REDIS_VER}/redis.conf  /usr/local/redis/etc/
@@ -1783,30 +1729,26 @@ EOF
 
     ln -sf /usr/local/redis/bin/redis-server /usr/local/bin/redis-server
     ln -sf /usr/local/redis/bin/redis-cli /usr/local/bin/redis-cli
-
-    ins_end "redis-server"
 }
 
-install_tomcat() {
-    ins_begin "Java"
+install_java() {
     yum install -y java-11-openjdk.x86_64 java-11-openjdk-devel.x86_64
     export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
     export JRE_HOME=/usr/lib/jvm/java-11-openjdk/jre
-    ins_end "java"
 
+    MODULE_NAME="Tomcat"
     ins_begin
     wget_cache "https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VER}/bin/apache-tomcat-${TOMCAT_VER}.tar.gz" "apache-tomcat-${TOMCAT_VER}.tar.gz"
-    if ! tar zxf apache-tomcat-${TOMCAT_VER}.tar.gz; then
-        echo "${MODULE_NAME}-${TOMCAT_VER} 源码包下载失败，退出当前安装！" >> /root/install-error.log
-        ins_end
-        return
-    fi
+    tar zxf apache-tomcat-${TOMCAT_VER}.tar.gz || return 255
 
     cd apache-tomcat-${TOMCAT_VER}/bin
     tar zxf commons-daemon-native.tar.gz
     cd commons-daemon-1.1.0-native-src/unix
     ./configure
-    make 2>/root/make-tomcat-jsvc.err.log || echo "${MODULE_NAME}-${TOMCAT_VER} 源码编译失败！" >> /root/install-error.log
+    make || make_result="fail"
+    if [[ $make_result == "fail" ]]; then
+        return 1
+    fi
     mv jsvc ../../
     cd ../..
     rm -rf commons-daemon-1.1.0-native-src commons-daemon-native.tar.gz tomcat-native.tar.gz
@@ -1953,7 +1895,7 @@ EOF
     chkconfig --add tomcat
     chkconfig tomcat on
 
-    echo_green "[√] Tomcat 安装成功！当前版本：$(/usr/local/tomcat/bin/version.sh|grep 'Server version')"
+    MODULE_NAME="Java"
 }
 
 setting_sendmail_conf() {
@@ -2145,7 +2087,7 @@ clean_install_files() {
         for deldir in "${CUR_DIR}"/src/*
         do
             if [ -d "${deldir}" ]; then
-                echo_blue "正在删除 ${deldir}..."
+                echo "正在删除 ${deldir}"
                 rm -rf "${deldir}"
             fi
         done
@@ -2364,126 +2306,40 @@ if [[ ${SETSSH} == "y" || ${SETSSH} == "Y" ]]; then
     ssh_setting
 fi
 
-MODULE_NAME="ZSH"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSZSH
-else
-    INSZSH="Y"
-fi
-if [[ ${INSZSH} == "y" || ${INSZSH} == "Y" ]]; then
-    install_zsh
-fi
 
-MODULE_NAME="Git"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSCMAKE
-else
-    INSGIT="Y"
-fi
-if [[ ${INSGIT} == "y" || ${INSGIT} == "Y" ]]; then
-    install_git
-fi
+for module in "ZSH" "Git" "Vim" "CMake" "MySQL" "Redis" "Python3"  "PHP" "NodeJS" "Nginx" "Java"; do
+    MODULE_NAME=${module}
+    if [[ ${INSSTACK} != "auto" ]]; then
+        show_ver
+        read -r -p "是(Y)/否(N): " INPUT_RESULT
+    else
+        INPUT_RESULT="Y"
+    fi
+    if [[ ${INPUT_RESULT} == "y" || ${INPUT_RESULT} == "Y" ]]; then
+        ins_begin
+        make_result=""
+        func_name=$(echo $module | tr '[:upper:]' '[:lower:]')
+        install_${func_name}
+        ins_result=$?
+        if [[ $ins_result == 255 ]]; then
+            echo "${MODULE_NAME} 源码包下载失败，退出当前安装！" >> /root/install-error.log
+        elif [[ $ins_result == 1 ]]; then
+            echo "${MODULE_NAME} 源码编译不成功，安装失败！" >> /root/install-error.log
+        fi
+        ins_end
+        if [[ $ins_result == 0 ]]; then
+            if [[ $module == "Python3" ]]; then
+                echo_green "\tpip版本：$(pip3 --version)"
+                echo_green "\tuWsgi版本：$(uwsgi --version)"
+            elif [[ $module == "NodeJS" ]]; then
+                echo_green "\tnpm版本：$(npm --version)"
+            elif [[ $module == "Java" ]]; then
+                echo_green "\tTomcat版本：$(/usr/local/tomcat/bin/version.sh|grep 'Server version')"
+            fi
+        fi
+    fi
+done
 
-MODULE_NAME="CMake"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSCMAKE
-else
-    INSCMAKE="Y"
-fi
-if [[ ${INSCMAKE} == "y" || ${INSCMAKE} == "Y" ]]; then
-    install_cmake
-fi
-
-MODULE_NAME="Vim"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSVIM
-else
-    INSVIM="Y"
-fi
-if [[ ${INSVIM} == "y" || ${INSVIM} == "Y" ]]; then
-    install_vim
-fi
-
-MODULE_NAME="Python3"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSPYTHON3
-else
-    INSPYTHON3="Y"
-fi
-if [[ ${INSPYTHON3} == "y" || ${INSPYTHON3} == "Y" ]]; then
-    install_python3
-fi
-
-MODULE_NAME="Redis"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSREDIS
-else
-    INSREDIS="Y"
-fi
-if [[ ${INSREDIS} == "y" || ${INSREDIS} == "Y" ]]; then
-    install_redis
-fi
-
-MODULE_NAME="PHP"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSPHP
-else
-    INSPHP="Y"
-fi
-if [[ ${INSPHP} == "y" || ${INSPHP} == "Y" ]]; then
-    install_php
-fi
-
-MODULE_NAME="MySQL"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSMYSQL
-else
-    INSMYSQL="Y"
-fi
-if [[ ${INSMYSQL} == "y" || ${INSMYSQL} == "Y" ]]; then
-    install_mysql
-fi
-
-MODULE_NAME="NodeJS"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSNODEJS
-else
-    INSNODEJS="Y"
-fi
-if [[ ${INSNODEJS} == "y" || ${INSNODEJS} == "Y" ]]; then
-    install_nodejs
-fi
-
-MODULE_NAME="Nginx"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSNGINX
-else
-    INSNGINX="Y"
-fi
-if [[ ${INSNGINX} == "y" || ${INSNGINX} == "Y" ]]; then
-    install_nginx
-fi
-
-MODULE_NAME="Tomcat"
-if [[ ${INSSTACK} != "auto" ]]; then
-    show_ver
-    read -r -p "是(Y)/否(N): " INSTOMCAT
-else
-    INSTOMCAT="Y"
-fi
-if [[ ${INSTOMCAT} == "y" || ${INSTOMCAT} == "Y" ]]; then
-    install_tomcat
-fi
 
 if [[ ${INSSTACK} != "auto" ]]; then
     echo_yellow "是否设置 SMTP 发送邮件?"
@@ -2501,7 +2357,6 @@ fi
 if [[ ${INSMONITOR} == "y" || ${INSMONITOR} == "y" ]]; then
     install_shellMonitor
 fi
-
 
 if [[ ${INSSTACK} != "auto" ]]; then
     echo_yellow "是否启用防火墙(默认启用)?"
