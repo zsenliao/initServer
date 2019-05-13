@@ -385,6 +385,18 @@ install_zsh() {
     echo 'alias cls="clear"' >> ~/.zshrc
     echo 'alias grep="grep --color"' >> ~/.zshrc
     echo "export PATH=/usr/local/bin:\$PATH" >> ~/.zshrc
+
+    echo "" >> ~/.zshrc
+    echo 'autoload -U colors && colors' >> ~/.zshrc
+    echo 'local exit_code="%(?,,C:%{$fg[red]%}%?%{$reset_color%})"' >> ~/.zshrc
+    echo 'PROMPT="$fg[blue]#${reset_color} $fg[cyan]%n$reset_color@$fg[green]%m$reset_color:$fg[yellow]%1|%~$reset_color [zsh-%*] $exit_code\n%{$terminfo[bold]$fg[red]%}$ %{$reset_color%}"' >> ~/.zshrc
+    echo 'autoload -U compinit' >> ~/.zshrc
+    echo 'compinit' >> ~/.zshrc  # 开启自动补全
+    echo 'zstyle ":completion:*" menu select' >> ~/.zshrc  # 按两次 tab 键启动菜单
+    echo 'setopt completealiases' >> ~/.zshrc  # 启动命令行别名的自动补全
+    echo 'setopt HIST_IGNORE_DUPS' >> ~/.zshrc  # 消除历史记录中的重复条目
+    echo 'bindkey "^[[A" history-beginning-search-backward' >> ~/.zshrc
+    echo 'bindkey "^[[B" history-beginning-search-forward' >> ~/.zshrc
 }
 
 install_vim() {
@@ -2184,6 +2196,26 @@ yum -y upgrade
 if ! grep /usr/local/bin ~/.bashrc 1>/dev/null; then
     echo "export PATH=/usr/local/bin:\$PATH" >> ~/.bashrc
 fi
+cat >> ~/.bashrc << EOF
+
+#export HISTCONTROL=erasedups  # 忽略全部重复命令的历史记录，默认是 ignoredups 忽略连续重复的
+export HISTIGNORE="pwd:ls:ll:l:"
+
+alias ll="ls -alF"
+alias la="ls -A"
+alias l="ls -CF"
+alias lbys="ls -alhS"
+alias lbyt="ls -alht"
+alias cls="clear"
+alias grep="grep --color"
+
+if [[ $- == *i* ]]; then
+    bind '"\e[A": history-search-backward'
+    bind '"\e[B": history-search-forward'
+fi
+EOF
+echo 'export PS1="\[\\033[1;34m\]#\[\\033[m\] \[\\033[36m\]\\u\[\\033[m\]@\[\\033[32m\]\h:\[\\033[33;1m\]\w\[\\033[m\] [bash-\\t] \`errcode=\$?; if [ \$errcode -gt 0 ]; then echo C:\[\\e[31m\]\$errcode\[\\e[0m\]; fi\` \\n\[\\e[31m\]\$\[\\e[0m\] "' >> /etc/profile
+
 
 if [[ ${INSSTACK} == "upgrade" ]]; then
     echo_yellow "请选择要更新的服务?"
