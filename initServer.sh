@@ -1122,9 +1122,13 @@ install_nginx() {
     mkdir -p "${INSHOME}/wwwlogs"
     chmod 777 "${INSHOME}/wwwlogs"
 
-    mkdir -p "${INSHOME}/wwwroot"
+    mkdir -p "${INSHOME}/wwwroot/challenges"
     chown -R nobody:nobody "${INSHOME}/wwwroot"
     chmod +w "${INSHOME}/wwwroot"
+    chmod -R 777 "${INSHOME}/wwwroot/challenges"
+    
+    mkdir -p "${INSHOME}/wwwcert/scts"
+    chown -R nobody:nobody "${INSHOME}/wwwcert/scts"
 
     mkdir -p "${INSHOME}/wwwconf/nginx"
     chown -R nobody:nobody "${INSHOME}/wwwconf"
@@ -2073,7 +2077,7 @@ register_management-tool() {
         done
     fi
     wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
-    sed -i "s|/home|${INSHOME}|g" /usr/local/bin/${MYNAME}
+    sed -i "s|/data|${INSHOME}|g" /usr/local/bin/${MYNAME}
     chmod +x /usr/local/bin/${MYNAME}
 }
 
@@ -2195,6 +2199,9 @@ yum -y upgrade
 
 if ! grep /usr/local/bin ~/.bashrc 1>/dev/null; then
     echo "export PATH=/usr/local/bin:\$PATH" >> ~/.bashrc
+fi
+if ! grep vim ~/.bashrc 1>/dev/null; then
+    echo "alias vi=\"vim\"" >> ~/.bashrc
 fi
 cat >> ~/.bashrc << EOF
 
