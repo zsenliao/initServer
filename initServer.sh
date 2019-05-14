@@ -376,32 +376,79 @@ install_zsh() {
         sed -i "s/ZSH_THEME=\"robbyrussell\"/ZSH_THEME=\"ys\"/g" ~/.zshrc
     fi
 
-    echo 'export CLICOLOR=1' >> ~/.zshrc
-    echo 'alias ll="ls -alF"' >> ~/.zshrc
-    echo 'alias la="ls -A"' >> ~/.zshrc
-    echo 'alias l="ls -CF"' >> ~/.zshrc
-    echo 'alias lbys="ls -alhS"' >> ~/.zshrc
-    echo 'alias lbyt="ls -alht"' >> ~/.zshrc
-    echo 'alias cls="clear"' >> ~/.zshrc
-    echo 'alias grep="grep --color"' >> ~/.zshrc
-    echo "export PATH=/usr/local/bin:\$PATH" >> ~/.zshrc
+    cat > ~/.zshrc<<EOF
+export HISTSIZE=10000
+export SAVEHIST=10000
+export HISTFILE=~/.zsh_history
+export PATH=/usr/local/bin:\$PATH
 
-    echo "" >> ~/.zshrc
-    echo 'autoload -U colors && colors' >> ~/.zshrc
-    echo 'local exit_code="%(?,,C:%{$fg[red]%}%?%{$reset_color%})"' >> ~/.zshrc
-    echo 'PROMPT="$fg[blue]#${reset_color} $fg[cyan]%n$reset_color@$fg[green]%m$reset_color:$fg[yellow]%1|%~$reset_color [zsh-%*] $exit_code\n%{$terminfo[bold]$fg[red]%}$ %{$reset_color%}"' >> ~/.zshrc
-    echo 'autoload -U compinit' >> ~/.zshrc
-    echo 'compinit' >> ~/.zshrc  # 开启自动补全
-    echo 'zstyle ":completion:*" menu select' >> ~/.zshrc  # 按两次 tab 键启动菜单
-    echo 'setopt completealiases' >> ~/.zshrc  # 启动命令行别名的自动补全
-    echo 'setopt HIST_IGNORE_DUPS' >> ~/.zshrc  # 消除历史记录中的重复条目
-    echo 'bindkey "^[[A" history-beginning-search-backward' >> ~/.zshrc
-    echo 'bindkey "^[[B" history-beginning-search-forward' >> ~/.zshrc
+export CLICOLOR=1
+alias ll="ls -alF"
+alias la="ls -A"
+alias l="ls -CF"
+alias lbys="ls -alhS"
+alias lbyt="ls -alht"
+alias cls="clear"
+alias grep="grep --color"
+alias vi="vim"
+alias cp="cp -i"
+alias mv="mv -i"
+alias rm="rm -i"
+
+autoload -U colors && colors
+local exit_code="%(?,,C:%{\$fg[red]%}%?%{\$reset_color%})"
+PROMPT="\$fg[blue]#\${reset_color} \$fg[cyan]%n\$reset_color@\$fg[green]%m\$reset_color:\$fg[yellow]%1|%~\$reset_color [zsh-%*] \$exit_code
+%{\$terminfo[bold]\$fg[red]%}$ %{\$reset_color%}"
+
+setopt INC_APPEND_HISTORY # 以附加的方式写入历史纪录
+setopt HIST_IGNORE_DUPS   # 如果连续输入的命令相同，历史纪录中只保留一个
+setopt EXTENDED_HISTORY   # 为历史纪录中的命令添加时间戳
+#setopt HIST_IGNORE_SPACE  # 在命令前添加空格，不将此命令添加到纪录文件中
+
+autoload -U compinit
+compinit
+
+# 自动补全功能
+setopt AUTO_LIST
+setopt AUTO_MENU
+#setopt MENU_COMPLETE      # 开启此选项，补全时会直接选中菜单项
+setopt AUTO_PUSHD         # 启用 cd 命令的历史纪录，cd -[TAB]进入历史路径
+setopt PUSHD_IGNORE_DUPS  # 相同的历史路径只保留一个
+
+setopt completealiases
+#自动补全选项
+zstyle ":completion:*" menu select
+zstyle ":completion:*:*:default" force-list always
+zstyle ":completion:*:match:*" original only
+zstyle ":completion::prefix-1:*" completer _complete
+zstyle ":completion:predict:*" completer _complete
+zstyle ":completion:incremental:*" completer _complete _correct
+zstyle ":completion:*" completer _complete _prefix _correct _prefix _match _approximate
+
+#路径补全
+zstyle ":completion:*" expand "yes"
+zstyle ":completion:*" squeeze-shlashes "yes"
+zstyle ":completion::complete:*" "\\\\"
+
+#错误校正
+zstyle ":completion:*" completer _complete _match _approximate
+zstyle ":completion:*:approximate:*" max-errors 1 numeric
+
+#kill 命令补全
+compdef pkill=kill
+compdef pkill=killall
+zstyle ":completion:*:*:kill:*" menu yes select
+zstyle ":completion:*:*:*:*:processes" force-list always
+zstyle ":completion:*:processes" command "ps -au\$USER"
+
+bindkey "^[[A" history-beginning-search-backward
+bindkey "^[[B" history-beginning-search-forward
+EOF
 }
 
 install_vim() {
     wget_cache "https://github.com/vim/vim/archive/master.tar.gz" "vim-master.tar.gz"
-    tar zxf vim-master.tar.gz || return 255
+    tar zxvf vim-master.tar.gz || return 255
 
     yum uninstall -y vim
     yum remove -y vim
@@ -416,7 +463,6 @@ install_vim() {
 
     echo_blue "[+] 安装 vim 插件..."
     curl https://raw.githubusercontent.com/wklken/vim-for-server/master/vimrc > ~/.vimrc
-    echo 'alias vi="vim"' >> ~/.zshrc
 
     mkdir -p ~/.vim/syntax
 
@@ -429,7 +475,7 @@ install_vim() {
     echo "au BufNewFile,BufRead *.ini,*/.hgrc,*/.hg/hgrc setf ini" >> ~/.vim/filetype.vim
 
     wget -O php.vim.tar.gz https://www.vim.org/scripts/download_script.php?src_id=8651
-    tar zxf php.vim.tar.gz && mv syntax/php.vim ~/.vim/syntax/php.vim
+    tar zxvf php.vim.tar.gz && mv syntax/php.vim ~/.vim/syntax/php.vim
     rm -rf syntax php.vim.tar.gz
     echo "au BufNewFile,BufRead *.php setf php" >> ~/.vim/filetype.vim
 
@@ -439,16 +485,28 @@ install_vim() {
 
 install_htop() {
     wget_cache "https://hisham.hm/htop/releases/${HTOP_VER}/htop-${HTOP_VER}.tar.gz" "htop-${HTOP_VER}.tar.gz"
-    tar zxf htop-${HTOP_VER}.tar.gz || return 255
+    tar zxvf htop-${HTOP_VER}.tar.gz || return 255
     cd htop-${HTOP_VER}
     ./configure
     make && make install
     cd ..
 }
 
+install_ikev2() {
+    echo_blue "[+] 安装 one-key-ikev2..."
+    install_acme
+
+    mkdir ikev2
+    cd ikev2
+    wget -c https://raw.githubusercontent.com/quericy/one-key-ikev2-vpn/master/one-key-ikev2.sh
+    chmod +x one-key-ikev2.sh
+    bash one-key-ikev2.sh
+    cd ..
+}  # TODO
+
 install_cmake() {
     wget_cache "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VER}/cmake-${CMAKE_VER}.tar.gz" "cmake-${CMAKE_VER}.tar.gz"
-    tar zxf cmake-${CMAKE_VER}.tar.gz || return 255
+    tar zxvf cmake-${CMAKE_VER}.tar.gz || return 255
 
     rpm -q cmake
     yum remove -y cmake
@@ -698,88 +756,6 @@ install_python3() {
     fi
 }
 
-install_ikev2() {
-    echo_blue "[+] 安装 one-key-ikev2..."
-    install_acme
-
-    mkdir ikev2
-    cd ikev2 || exit
-    wget -c https://raw.githubusercontent.com/quericy/one-key-ikev2-vpn/master/one-key-ikev2.sh
-    chmod +x one-key-ikev2.sh
-
-    while :;do
-        echo_yellow "请输入证书主域名(主域名只能有一个)"
-        read -r -p "如 zsen.club: " MAINDOMAIN
-        if [ "${MAINDOMAIN}" != "" ]; then
-            break
-        else
-            echo_red "域名不能为空！"
-        fi
-    done
-    echo_yellow "是否绑定更多域名(如不绑定请直接回车)？"
-    read -r -p "多个域名请用半角空格隔开: " MOREDOMAIN
-    DAMIN="-d ${MAINDOMAIN}"$(echo "${MOREDOMAIN}" | sed "s/ / -d&/g" | sed "s/^/-d &/g")
-
-    if [ -f ~/.acme.sh/"${MAINDOMAIN}"/ca.cer ]; then
-        cp ~/.acme.sh/"${MAINDOMAIN}"/ca.cer ca.cert.pem
-        cp ~/.acme.sh/"${MAINDOMAIN}"/"${MAINDOMAIN}".cer server.cert.pem
-        cp ~/.acme.sh/"${MAINDOMAIN}"/"${MAINDOMAIN}".key server.pem
-    else
-        echo_yellow "请选择证书验证方式"
-        read -r -p "dns 或 web: " ACMETYPE
-        if [[ ${ACMETYPE} == "dns" || ${ACMETYPE} == "DNS" ]]; then
-            echo_yellow "你选择的是 DNS 方式验证，需要你的 DNS 服务商:"
-            echo_blue "1: CloudFlare"
-            echo_blue "2: DNSPod (Default)"
-            echo_blue "3: CloudXNS"
-            echo_blue "4: GoDaddy"
-            read -r -p "请选择 (1, 2, 3, 4): " DNSERVER
-
-            case "${DNSERVER}" in
-                1)
-                    read -r -p "请输入 CF_KEY: " CF_KEY
-                    read -r -p "请输入 CF_Email: " CF_Email
-                    export CF_KEY="${CF_KEY}"
-                    export CF_Email="${CF_Email}"
-                    acme.sh --issue --dns dns_cf ${DAMIN}
-                    ;;
-                3)
-                    read -r -p "请输入 CX_Key: " CX_Key
-                    read -r -p "请输入 CX_Secret: " CX_Secret
-                    export CX_Key="${CX_Key}"
-                    export CX_Secret="${CX_Secret}"
-                    acme.sh --issue --dns dns_cx ${DAMIN}
-                    ;;
-                4)
-                    read -r -p "请输入 GD_Key: " GD_Key
-                    read -r -p "请输入 GD_Secret: " GD_Secret
-                    export GD_Key="${GD_Key}"
-                    export GD_Secret="${GD_Secret}"
-                    acme.sh --issue --dns dns_gd ${DAMIN}
-                    ;;
-                *)
-                    read -r -p "请输入 DP_Id: " DP_Id
-                    read -r -p "请输入 DP_Key: " DP_Key
-                    export DP_Id="${DP_Id}"
-                    export DP_Key="${DP_Key}"
-                    acme.sh --issue --dns dns_dp ${DAMIN}
-                    ;;
-            esac
-        else
-            if command -v apache2 >/dev/null 2>&1; then
-                acme.sh --issue -d ${DAMIN} --apache
-            elif command -v nginx >/dev/null 2>&1; then
-                acme.sh --issue -d ${DAMIN} --nginx
-            else
-                acme.sh --issue -d ${DAMIN} --standalone
-            fi
-        fi
-    fi
-
-    bash one-key-ikev2.sh
-    cd ..
-}  # TODO
-
 install_nodejs() {
     wget_cache "https://nodejs.org/dist/v${NODEJS_VER}/node-v${NODEJS_VER}-linux-x64.tar.xz" "node-v${NODEJS_VER}-linux-x64.tar.xz"
     tar -xf node-v${NODEJS_VER}-linux-x64.tar.xz || return 255
@@ -807,13 +783,13 @@ install_mysql() {
     echo_green "MySQL ROOT 用户密码(请记下来): ${DBROOTPWD}"
 
     wget_cache "http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz" "boost_1_59_0.tar.gz" "Boost"
-    tar zxf boost_1_59_0.tar.gz || return 255
+    tar zxvf boost_1_59_0.tar.gz || return 255
 
     mv boost_1_59_0 /usr/local/boost
     chown root:root -R /usr/local/boost
 
     wget_cache "https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQL_VER}.tar.gz" "mysql-${MYSQL_VER}.tar.gz"
-    tar zxf mysql-${MYSQL_VER}.tar.gz || return 255
+    tar zxvf mysql-${MYSQL_VER}.tar.gz || return 255
 
     get_module_ver "cmake"
     if [ -z "${MODULE_VER}" ]; then
@@ -1084,6 +1060,19 @@ install_nginx() {
     install_start-stop-daemon
     install_acme
 
+    get_module_ver "git"
+    if [ -z "${MODULE_VER}" ]; then
+        MODULE_NAME="Git"
+        echo_yellow "编译 Nginx 源码需要使用到 Git!"
+        ins_begin
+        install_git
+        if [[ $? == 1 ]]; then
+            return 1
+        fi
+        ins_end
+        MODULE_NAME="Nginx"
+    fi
+
     git clone https://github.com/google/ngx_brotli.git
     cd ngx_brotli
     git submodule update --init
@@ -1094,7 +1083,7 @@ install_nginx() {
     mv openssl-OpenSSL_1_1_1 openssl
 
     wget_cache "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" "nginx-${NGINX_VER}.tar.gz"
-    tar zxf nginx-${NGINX_VER}.tar.gz || return 255
+    tar zxvf nginx-${NGINX_VER}.tar.gz || return 255
     rm -rf /usr/local/nginx
 
     cd nginx-${NGINX_VER}
@@ -1332,7 +1321,7 @@ install_php() {
     yum install -y libmcrypt libmcrypt-devel mcrypt mhash
 
     wget_cache "https://libzip.org/download/libzip-1.5.1.tar.gz" "libzip-1.5.1.tar.gz" "libzip"
-    tar zxf libzip-1.5.1.tar.gz || return 255
+    tar zxvf libzip-1.5.1.tar.gz || return 255
 
     get_module_ver "cmake"
     if [ -z "${MODULE_VER}" ]; then
@@ -1367,7 +1356,7 @@ EOF
     ldconfig
 
     wget_cache "http://cn2.php.net/get/php-${PHP_VER}.tar.gz/from/this/mirror" "php-${PHP_VER}.tar.gz" "PHP"
-    tar zxf php-${PHP_VER}.tar.gz || return 255
+    tar zxvf php-${PHP_VER}.tar.gz || return 255
 
     cd php-${PHP_VER}
     ./configure --prefix=/usr/local/php \
@@ -1615,7 +1604,7 @@ install_redis() {
     chown -R redis:redis ${REDISHOME}
 
     wget_cache "http://download.redis.io/releases/redis-${REDIS_VER}.tar.gz" "redis-${REDIS_VER}.tar.gz"
-    tar zxf redis-${REDIS_VER}.tar.gz || return 255
+    tar zxvf redis-${REDIS_VER}.tar.gz || return 255
 
     cd redis-${REDIS_VER}
     make -j ${CPUS} && make PREFIX=/usr/local/redis install || make_result="fail"
@@ -1766,10 +1755,10 @@ install_java() {
     MODULE_NAME="Tomcat"
     ins_begin
     wget_cache "https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VER}/bin/apache-tomcat-${TOMCAT_VER}.tar.gz" "apache-tomcat-${TOMCAT_VER}.tar.gz"
-    tar zxf apache-tomcat-${TOMCAT_VER}.tar.gz || return 255
+    tar zxvf apache-tomcat-${TOMCAT_VER}.tar.gz || return 255
 
     cd apache-tomcat-${TOMCAT_VER}/bin
-    tar zxf commons-daemon-native.tar.gz
+    tar zxvf commons-daemon-native.tar.gz
     cd commons-daemon-1.1.0-native-src/unix
     ./configure
     make || make_result="fail"

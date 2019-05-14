@@ -167,6 +167,20 @@ add_vhost() {
         fi
     done
 
+    if [ -x /etc/init.d/php-fpm ]; then
+        echo_yellow "是否启用 PHP?"
+        read -r -p "是(Y)/否(N): " phpfpm
+        if [[ ${phpfpm} == "y" || ${phpfpm} == "Y" ]]; then
+            echo_yellow "是否限制站点目录防止跨站(PHP)?"
+            read -r -p "是(Y)/否(N): " phpallowed
+            if [[ ${phpallowed} == "y" || ${phpallowed} == "Y" ]]; then
+                open_basedir="fastcgi_param           PHP_VALUE \"open_basedir=\$document_root:/tmp/:/proc/\";"
+            else
+                open_basedir=""
+            fi
+        fi
+    fi
+
     if [ -x /etc/init.d/uwsgi ]; then
         echo_yellow "是否启用 uWSGI(Python)?"
         read -r -p "是(Y)/否(N): " uwsgi
@@ -179,20 +193,6 @@ add_vhost() {
             echo_yellow "Python 程序目录"
             read -r -p "请输入(默认请直接回车): " appdir_temp
             appdir="/${appdir_temp}"
-        fi
-    fi
-
-    if [ -x /etc/init.d/php-fpm ]; then
-        echo_yellow "是否启用 PHP?"
-        read -r -p "是(Y)/否(N): " phpfpm
-        if [[ ${phpfpm} == "y" || ${phpfpm} == "Y" ]]; then
-            echo_yellow "是否限制站点目录防止跨站(PHP)?"
-            read -r -p "是(Y)/否(N): " phpallowed
-            if [[ ${phpallowed} == "y" || ${phpallowed} == "Y" ]]; then
-                open_basedir="fastcgi_param           PHP_VALUE \"open_basedir=\$document_root:/tmp/:/proc/\";"
-            else
-                open_basedir=""
-            fi
         fi
     fi
 
@@ -220,6 +220,65 @@ add_vhost() {
         al="access_log off;"
     fi
 
+    # TODO: 泛域名设置
+    echo_yellow "请选择 https 证书验证方式"
+    echo_blue "1: web"
+    echo_blue "2: dns"
+    read -r -p "请输入数字: " ACMETYPE
+    if [[ ${ACMETYPE} == 2 || ${ACMETYPE} == "dns" || ${ACMETYPE} == "DNS" ]]; then
+        echo_blue "你选择的是 DNS 方式验证，请按提示输入以下信息。"
+        echo_yellow "请选择 DNS 服务商:"
+        echo_blue "1: CloudFlare"
+        echo_blue "2: DNSPod"
+        echo_blue "3: CloudXNS"
+        echo_blue "4: GoDaddy"
+        echo_blue "5: Aliyun"
+        read -r -p "请输入 (1, 2, 3, 4, 5): " DNSERVER
+
+        case "${DNSERVER}" in
+            1)
+                echo_blue "请通过 https://dash.cloudflare.com/profile 查询账户 API 的 Key 信息"
+                read -r -p "请输入 Key: " CF_KEY
+                read -r -p "请输入 Email: " CF_Email
+                export CF_KEY="${CF_KEY}"
+                export CF_Email="${CF_Email}"
+                ACME_DNS="dns_cf"
+                ;;
+            3)
+                echo_blue "请先登录 CloudXNS.com 查询账户 API 的 Key 及 Secret"
+                read -r -p "请输入 Key: " CX_Key
+                read -r -p "请输入 Secret: " CX_Secret
+                export CX_Key="${CX_Key}"
+                export CX_Secret="${CX_Secret}"
+                ACME_DNS="dns_cx"
+                ;;
+            4)
+                echo_blue "请通过 https://developer.godaddy.com/keys/ 查询账户 API 的 Key 及 Secret"
+                read -r -p "请输入 Key: " GD_Key
+                read -r -p "请输入 Secret: " GD_Secret
+                export GD_Key="${GD_Key}"
+                export GD_Secret="${GD_Secret}"
+                ACME_DNS="dns_gd"
+                ;;
+            5)
+                echo_blue "请通过 https://ak-console.aliyun.com/#/accesskey 查询账户 API 的 Key 及 Secret"
+                read -r -p "请输入 Key: " Ali_Key
+                read -r -p "请输入 Email: " Ali_Secret
+                export Ali_Key="${Ali_Key}"
+                export Ali_Secret="${Ali_Secret}"
+                ACME_DNS="dns_ali"
+                ;;
+            *)
+                echo_blue "请先登录 DNSPod 查询账户 API 的 Key 及 ID"
+                read -r -p "请输入 ID: " DP_Id
+                read -r -p "请输入 Key: " DP_Key
+                export DP_Id="${DP_Id}"
+                export DP_Key="${DP_Key}"
+                ACME_DNS="dns_dp"
+                ;;
+        esac
+    fi
+
     echo ""
     echo_yellow "新增网站信息："
     echo_info_green "网站域名" "$domain $moredomain"
@@ -234,22 +293,22 @@ add_vhost() {
     else
         echo_info_blue "跨域请求" "不启用"
     fi
-    if [[ ${uwsgi} == "y" || ${uwsgi} == "Y" ]]; then
-        echo_info_green "uWSGI(Python) 服务" "已启用"
-        echo_info_green "\tuWSGI 入口文件" "${appname}"
-        echo_info_green "\tuWSGI 程序目录" "${appdir_temp}"
-    else
-        echo_info_blue "uWSGI(Python) 服务" "未安装/未启用"
-    fi
     if [[ ${phpfpm} == "y" || ${phpfpm} == "Y" ]]; then
         echo_info_green "PHP 服务" "已启用"
         if [[ ${phpfpm} == "y" || ${phpfpm} == "Y" ]]; then
-            echo_info_green "\tPHP 限制目录" "是"
+            echo_info_green "    PHP 限制目录" "是"
         else
-            echo_info_green "\tPHP 限制目录" "否"
+            echo_info_green "    PHP 限制目录" "否"
         fi
     else
         echo_info_blue "PHP 服务" "未安装/未启用"
+    fi
+    if [[ ${uwsgi} == "y" || ${uwsgi} == "Y" ]]; then
+        echo_info_green "uWsgi 服务" "已启用"
+        echo_info_green "    uWsgi 入口文件" "${appname}"
+        echo_info_green "    uWsgi 程序目录" "${appdir_temp}"
+    else
+        echo_info_blue "uWsgi 服务" "未安装/未启用"
     fi
     if [[ "${tomcat}" == "y" || "${tomcat}" == "Y" ]]; then
         echo_info_green "Tomcat 服务" "已启用"
@@ -273,7 +332,7 @@ add_vhost() {
         touch "${DATAHOME}/wwwlogs/${al_name}.log"
     fi
     if [[ ${tomcat} == "y" || ${tomcat} == "Y" ]]; then
-        sed -i "/<\/Engine>/i      <Host name=\"${domain}\"  appBase=\"\" unpackWARs=\"true\" autoDeploy=\"true\">\n        <Context path=\"\" reloadable=\"true\" docBase=\"${vhostdir}\" debug=\"0\" />\n        <Valve className=\"org.apache.catalina.valves.AccessLogValve\" directory=\"${DATAHOME}/wwwlogs\" prefix=\"${domain}_tomcat\" suffix=\".log\" pattern=\"%h %l %u %t &quot;%r&quot; %s %b\" />\n      </Host>" /usr/local/tomcat/conf/server.xml
+        sed -i "/<\/Engine>/i\      <Host name=\"${domain}\"  appBase=\"\" unpackWARs=\"true\" autoDeploy=\"true\">\n        <Context path=\"\" reloadable=\"true\" docBase=\"${vhostdir}\" debug=\"0\" />\n        <Valve className=\"org.apache.catalina.valves.AccessLogValve\" directory=\"${DATAHOME}/wwwlogs\" prefix=\"${domain}_tomcat\" suffix=\".log\" pattern=\"%h %l %u %t &quot;%r&quot; %s %b\" />\n      </Host>" /usr/local/tomcat/conf/server.xml
         echo "127.0.0.1  ${domain}" >> /etc/hosts
     fi
     if [[ ${uwsgi} == "y" || ${uwsgi} == "Y" ]]; then
@@ -340,16 +399,17 @@ server
 EOF
     echo_blue "测试网站配置文件..."
     /usr/local/nginx/sbin/nginx -t
-    echo_blue "重启 Nginx 服务..."
     /usr/local/nginx/sbin/nginx -s reload
 
-    echo_blue "安装证书..."
     mkdir -p "${DATAHOME}/wwwcert/${domain}"
     openssl dhparam -out "${DATAHOME}/wwwcert/${domain}/dhparams.pem" 2048
     # openssl rand 48 > "${DATAHOME}/wwwcert/${domain}/session_ticket.key"
 
-    # TODO 选择是否 DNSAPI 方式。如果是，可申请泛域名证书
-    /root/.acme.sh/acme.sh --issue ${INSCERTDOMAIN} --webroot /data/wwwroot/challenges --log
+    if [[ ${ACMETYPE} == 2 || ${ACMETYPE} == "dns" || ${ACMETYPE} == "DNS" ]]; then
+        /root/.acme.sh/acme.sh --issue --dns ${ACME_DNS} ${INSCERTDOMAIN}
+    else
+        /root/.acme.sh/acme.sh --issue ${INSCERTDOMAIN} --webroot /data/wwwroot/challenges --log
+    fi
     /root/.acme.sh/acme.sh --installcert ${INSCERTDOMAIN} \
         --cert-file ${DATAHOME}/wwwcert/${domain}/cert.pem \
         --key-file ${DATAHOME}/wwwcert/${domain}/${domain}.key \
@@ -472,7 +532,6 @@ cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
             include                 fastcgi.conf;
             ${open_basedir}
         }
-
 EOF
     fi
 
@@ -484,7 +543,6 @@ cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
             uwsgi_connect_timeout   30;
             uwsgi_pass              unix:/tmp/${domain}.uwsgi.sock;
         }
-
 EOF
     fi
 
@@ -502,6 +560,7 @@ EOF
     fi
 
 cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
+
         location ~ /\\. {
             deny all;
         }
@@ -509,10 +568,12 @@ cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 EOF
 
     echo_blue "测试网站配置文件..."
-    if /usr/local/nginx/sbin/nginx -t; then
-        echo_green "证书安装成功，重启 Nginx 服务..."
-        /usr/local/nginx/sbin/nginx -s reload
+    if ! /usr/local/nginx/sbin/nginx -t || ! /etc/init.d/php-fpm configtest; then
+        echo_red "网站配置失败!"
+        exit 1
     fi
+    echo_green "网站配置成功，重启服务..."
+    server_reload
 
     echo ""
     echo_yellow "========= 网站信息 ========="
@@ -528,22 +589,22 @@ EOF
     else
         echo_info_blue "跨域请求" "不启用"
     fi
-    if [[ ${uwsgi} == "y" || ${uwsgi} == "Y" ]]; then
-        echo_info_green "uWSGI(Python) 服务" "已启用"
-        echo_info_green "\tuWSGI 入口文件" "${appname}"
-        echo_info_green "\tuWSGI 程序目录" "${appdir_temp}"
-    else
-        echo_info_blue "uWSGI(Python) 服务" "未安装/未启用"
-    fi
     if [[ ${phpfpm} == "y" || ${phpfpm} == "Y" ]]; then
         echo_info_green "PHP 服务" "已启用"
         if [[ ${phpfpm} == "y" || ${phpfpm} == "Y" ]]; then
-            echo_info_green "\tPHP 限制目录" "是"
+            echo_info_green "    PHP 限制目录" "是"
         else
-            echo_info_green "\tPHP 限制目录" "否"
+            echo_info_green "    PHP 限制目录" "否"
         fi
     else
         echo_info_blue "PHP 服务" "未安装/未启用"
+    fi
+    if [[ ${uwsgi} == "y" || ${uwsgi} == "Y" ]]; then
+        echo_info_green "uWsgi 服务" "已启用"
+        echo_info_green "    uWsgi 入口文件" "${appname}"
+        echo_info_green "    uWsgi 程序目录" "${appdir_temp}"
+    else
+        echo_info_blue "uWsgi 服务" "未安装/未启用"
     fi
     if [[ "${tomcat}" == "y" || "${tomcat}" == "Y" ]]; then
         echo_info_green "Tomcat 服务" "已启用"
@@ -558,7 +619,7 @@ list_vhost() {
     for site in ${DATAHOME}/wwwconf/nginx/*.conf; do
         [[ -e "$site" ]] || break
         echo_info_green "[$i]" "${site:${#DATAHOME}+15:0-5}"
-        ( i=$i+1 )
+        let i=$i+1
     done
 }
 
