@@ -19,7 +19,7 @@ PYTHON3_VER=3.7.2
 NODEJS_VER=10.15.3
 STARTSTOPDAEMON_VER=1.17.27
 NGINX_VER=1.15.6
-PHP_VER=7.2.16
+PHP_VER=7.2.18
 MCRYPT_VER=1.0.2
 REDIS_VER=5.0.3
 MYSQL_VER=5.7.21
@@ -298,13 +298,14 @@ ssh_setting() {
     service rsyslog restart
 
     if [[ ${DOWNFILE} == "y" || ${DOWNFILE} == "Y" ]]; then
+        EMPTY_SER_NAME="MyServer"
         echo_green "已设置证书登录(如设置了证书密码，还需要输入密码)，登录方式："
         echo "ssh -i ./${FILENAME} -p ${SSHPORT} ${USERNAME}@${HOSTIP}"
         echo_blue "请根据实际情况修改上面命令中 ./${FILENAME} 证书路径，并将证书文件设置 600 权限：chmod 600 ${FILENAME}"
         echo_red "请注意：如果客户机 ~/.ssh 目录下有多个证书，以上命令会连接失败！"
         echo_red "需要在 ~/.ssh/config 文件中添加 Host 将服务器与证书对应(Windows 系统未验证)"
         echo_green "参考以下方式添加 ~/.ssh/config 内容："
-        echo "Host myServer"
+        echo "Host ${HOST_NAME-$EMPTY_SER_NAME}"
         echo "    HostName ${HOSTIP}"
         echo "    User ${USERNAME}"
         echo "    Port ${SSHPORT}"
@@ -312,7 +313,7 @@ ssh_setting() {
         echo "    IdentityFile ./${FILENAME}"
         echo "    IdentitiesOnly yes"
         echo_green "同样请根据实际情况修改上面命令中 ./${FILENAME} 证书路径，然后通过以下命令连接："
-        echo "ssh myServer"
+        echo "ssh ${HOST_NAME-$EMPTY_SER_NAME}"
     else
         echo_green "已设置用户密码登录(登录时需输入用户密码 ${PASSWORD})。登录方式："
         echo "ssh -p ${SSHPORT} $(whoami)@${HOSTIP}"
@@ -484,6 +485,7 @@ install_vim() {
 }
 
 install_htop() {
+    yum install -y ncurses-devel
     wget_cache "https://hisham.hm/htop/releases/${HTOP_VER}/htop-${HTOP_VER}.tar.gz" "htop-${HTOP_VER}.tar.gz"
     tar zxvf htop-${HTOP_VER}.tar.gz || return 255
     cd htop-${HTOP_VER}
@@ -2145,7 +2147,7 @@ clean_install() {
         netstat -ntl
     fi
 
-    if [[ ${INSNGINX} == "y" || ${INSNGINX} == "Y" ]]; then
+    if [ -x /usr/local/bin/nginx ]; then
         if [[ ${INSSTACK} != "auto" ]]; then
             echo_yellow "是否要添加默认站点? "
             read -r -p "是(Y)/否(N): " ADDHOST
