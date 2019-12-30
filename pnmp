@@ -338,37 +338,45 @@ add_vhost() {
     if [[ ${uwsgi} == "y" || ${uwsgi} == "Y" ]]; then
         cat >"${DATAHOME}/wwwconf/uwsgi/${domain}.ini"<<EOF
 [uwsgi]
-module=wsgi:app
+chdir=${vhostdir}${appdir}
+wsgi-file=${vhostdir}${appdir}/${appname}
+module=${appdir}:${appname}
+
 master=true
 workers=5
 processes=5
+threads=2
+enable-threads=true
 
 socket=/tmp/${domain}.uwsgi.sock
 pidfile=/tmp/${domain}.uwsgi.pid
 chmod-socket=660
-vacuum=true
 
-die-on-term=true
-
-chdir=${vhostdir}${appdir}
 uid=nobody
 gid=nobody
 callable=app
 
-wsgi-file=${appname}
-threads=2
+lazy-apps=true  # 在每个worker而不是master中加载应用
+listen=120    # 设置socket的监听队列大小（默认：100)
+# reload-mercy=8  # 设置在平滑的重启（直到接收到的请求处理完才重启）一个工作子进程中，等待这个工作结束的最长秒数
+# max-requests=5000  # 为每个工作进程设置请求数的上限。当一个工作进程处理的请求数达到这个值，那么该工作进程就会被回收重用（重启）
 
+vacuum=true
+die-on-term=true
+wsgi-disable-file-wrapper=true
 thunder-lock=true
-harakiri=30
-post-buffering=4096
+
+harakiri=60
+post-buffering=131072
+buffer-size=65536
+socket-timeout=10
 daemonize=${DATAHOME}/wwwlogs/${domain}.uwsgi.log
-#logto=${DATAHOME}/wwwlogs/${domain}.uwsgi.log
 EOF
     fi
 
     tmpvhost=$(ls ${DATAHOME}/wwwconf/nginx/)
     if [ -n "$tmpvhost" ]; then
-        LISTEN="listen                      443;"
+        LISTEN="listen                      443 ssl http2;"
     else
         LISTEN="listen                      443 ssl http2 fastopen=3 reuseport;"
     fi
