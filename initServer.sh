@@ -14,17 +14,19 @@ else
     INSTITLE="安装"
 fi
 
-CMAKE_VER=3.13.2
-PYTHON3_VER=3.7.2
-NODEJS_VER=10.15.3
+CMAKE_VER=3.16.2
+PYTHON3_VER=3.7.6
+NODEJS_VER=v12.14.0
 STARTSTOPDAEMON_VER=1.17.27
-NGINX_VER=1.15.6
-PHP_VER=7.2.18
-MCRYPT_VER=1.0.2
-REDIS_VER=5.0.3
+NGINX_VER=1.17.7
+PHP_VER=7.4.1
+MCRYPT_VER=1.0.3
+REDIS_VER=5.0.7
 MYSQL_VER=5.7.21
-TOMCAT_VER=9.0.8
+TOMCAT_VER=9.0.30
 HTOP_VER=2.2.0
+LIBZIP_VER=1.5.2
+OPENSSL_VER=1.1.1d
 
 get_server_ip() {
     local CURLTXT
@@ -759,10 +761,10 @@ install_python3() {
 }
 
 install_nodejs() {
-    wget_cache "https://nodejs.org/dist/v${NODEJS_VER}/node-v${NODEJS_VER}-linux-x64.tar.xz" "node-v${NODEJS_VER}-linux-x64.tar.xz"
-    tar -xf node-v${NODEJS_VER}-linux-x64.tar.xz || return 255
+    wget_cache "https://nodejs.org/dist/${NODEJS_VER}/node-${NODEJS_VER}-linux-x64.tar.xz" "node-${NODEJS_VER}-linux-x64.tar.xz"
+    tar -xf node-${NODEJS_VER}-linux-x64.tar.xz || return 255
 
-    mv node-v${NODEJS_VER}-linux-x64 /usr/local/node
+    mv node-${NODEJS_VER}-linux-x64 /usr/local/node
     chown root:root -R /usr/local
     ln -sf /usr/local/node/bin/node /usr/local/bin/node
     ln -sf /usr/local/node/bin/npm /usr/local/bin/npm
@@ -1080,9 +1082,9 @@ install_nginx() {
     git submodule update --init
     cd ..
 
-    wget_cache "https://github.com/openssl/openssl/archive/OpenSSL_1_1_1.tar.gz" "OpenSSL_1_1_1.tar.gz" "OpenSSL"
-    tar xzf OpenSSL_1_1_1.tar.gz || return 255
-    mv openssl-OpenSSL_1_1_1 openssl
+    wget_cache "https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz" "openssl-${OPENSSL_VER}.tar.gz" "OpenSSL"
+    tar xzf openssl-${OPENSSL_VER}.tar.gz || return 255
+    mv openssl-${OPENSSL_VER} openssl
 
     wget_cache "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" "nginx-${NGINX_VER}.tar.gz"
     tar zxvf nginx-${NGINX_VER}.tar.gz || return 255
@@ -1322,8 +1324,8 @@ install_php() {
     yum -y install libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libicu-devel
     yum install -y libmcrypt libmcrypt-devel mcrypt mhash
 
-    wget_cache "https://libzip.org/download/libzip-1.5.1.tar.gz" "libzip-1.5.1.tar.gz" "libzip"
-    tar zxvf libzip-1.5.1.tar.gz || return 255
+    wget_cache "https://libzip.org/download/libzip-${LIBZIP_VER}.tar.gz" "libzip-${LIBZIP_VER}.tar.gz" "libzip"
+    tar zxvf libzip-${LIBZIP_VER}.tar.gz || return 255
 
     get_module_ver "cmake"
     if [ -z "${MODULE_VER}" ]; then
