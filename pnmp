@@ -8,6 +8,10 @@ arg2=$2
 MYNAME=${0##*/}
 DATAHOME=/data
 
+echo_title() {
+    echo -e "\e[0;34m·-·-·-·-·-·-·= $1 =·-·-·-·-·-·-· \e[0m"
+}
+
 echo_red() {
     echo -e "\e[0;31m$1\e[0m"
 }
@@ -25,15 +29,19 @@ echo_blue() {
 }
 
 echo_info_green() {
-    printf "%-s: \e[0;32m%-s\e[0m\n" "$1" "$2"
+    printf "%-${3}s\e[0;32m%-s\e[0m\n" "$1" "$2"
 }
 
 echo_info_blue() {
-    printf "%-s: \e[0;34m%-s\e[0m\n" "$1" "$2"
+    printf "%-${3}s\e[0;34m%-s\e[0m\n" "$1" "$2"
 }
 
 echo_info_yellow() {
-    printf "%-s: \e[0;33m%-s\e[0m\n" "$1" "$2"
+    printf "%-${3}s\e[0;33m%-s\e[0m\n" "$1" "$2"
+}
+
+echo_info_red() {
+    printf "%-${3}s\e[0;31m%-s\e[0m\n" "$1" "$2"
 }
 
 # Check if user is root
@@ -44,81 +52,151 @@ fi
 
 server_start() {
     echo_blue "正在启动服务..."
-    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx start || echo_red "Nginx 未安装"
-    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld start || echo_red "MySQL 未安装"
-    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm start || echo_red "PHP 未安装"
-    [ -x /etc/init.d/redis ] && /etc/init.d/redis start || echo_red "Redis 未安装"
-    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi start || echo_red "Python uWSGI 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat start || echo_red "Tomcat 未安装"
+    /etc/init.d/nginx start
+    if [ -x /etc/init.d/mysqld ]; then /etc/init.d/mysqld start; else echo_info_red "MySQL" "[ 未安装 ]" 59; fi
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm start || echo_info_red "PHP" "[ 未安装 ]" 59
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis start || echo_info_red "Redis" "[ 未安装 ]" 59
+    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi start || echo_info_red "Python uWSGI" "[ 未安装 ]" 59
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat start || echo_info_red "Tomcat:" "[ 未安装 ]" 59
 }
 
 server_stop() {
     echo_blue "正在停止服务..."
-    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx stop || echo_red "Nginx 未安装"
-    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld stop || echo_red "MySQL 未安装"
-    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm stop || echo_red "PHP 未安装"
-    [ -x /etc/init.d/redis ] && /etc/init.d/redis stop || echo_red "Redis 未安装"
-    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi stop || echo_red "Python uWSGI 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat stop || echo_red "Tomcat 未安装"
+    /etc/init.d/nginx stop
+    if [ -x /etc/init.d/mysqld ]; then /etc/init.d/mysqld stop; else echo_info_red "MySQL" "[ 未安装 ]" 59; fi
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm stop || echo_info_red "PHP" "[ 未安装 ]" 59
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis stop || echo_info_red "Redis" "[ 未安装 ]" 59
+    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi stop || echo_info_red "Python uWSGI" "[ 未安装 ]" 59
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat stop || echo_info_red "Tomcat:" "[ 未安装 ]" 59
 }
 
 server_reload() {
     echo_blue "正在重启服务..."
-    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx reload || echo_red "Nginx 未安装"
-    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld reload || echo_red "MySQL 未安装"
-    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm reload || echo_red "PHP 未安装"
-    [ -x /etc/init.d/redis ] && /etc/init.d/redis reload || echo_red "Redis 未安装"
-    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi reload || echo_red "Python uWSGI 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat reload || echo_red "Tomcat 未安装"
+    /etc/init.d/nginx reload
+    if [ -x /etc/init.d/mysqld ]; then /etc/init.d/mysqld reload; else echo_info_red "MySQL" "[ 未安装 ]" 59; fi
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm reload || echo_info_red "PHP" "[ 未安装 ]" 59
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis reload || echo_info_red "Redis" "[ 未安装 ]" 59
+    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi reload || echo_info_red "Python uWSGI" "[ 未安装 ]" 59
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat reload || echo_info_red "Tomcat:" "[ 未安装 ]" 59
 }
 
 server_restart() {
     echo_blue "正在重启服务..."
-    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx restart || echo_red "Nginx 未安装"
-    [ -x /etc/init.d/mysqld ] && /etc/init.d/mysqld restart || echo_red "MySQL 未安装"
-    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm restart || echo_red "PHP 未安装"
-    [ -x /etc/init.d/redis ] && /etc/init.d/redis restart || echo_red "Redis 未安装"
-    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi restart || echo_red "Python uWSGI 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat restart || echo_red "Tomcat 未安装"
+    /etc/init.d/nginx restart
+    if [ -x /etc/init.d/mysqld ]; then /etc/init.d/mysqld restart; else echo_info_red "MySQL" "[ 未安装 ]" 59; fi
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm restart || echo_info_red "PHP" "[ 未安装 ]" 59
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis restart || echo_info_red "Redis" "[ 未安装 ]" 59
+    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi restart || echo_info_red "Python uWSGI" "[ 未安装 ]" 59
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat restart || echo_info_red "Tomcat:" "[ 未安装 ]" 59
 }
 
 server_test() {
     /etc/init.d/nginx configtest
-    /etc/init.d/php-fpm configtest
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm configtest || echo_info_red "PHP" "[ 未安装 ]" 59
 }
 
 server_kill() {
-    echo "正在退出服务..."
+    echo_blue "正在退出服务..."
     killall nginx
     killall mysqld
-    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm force-quit || echo_red "PHP 未安装"
-    [ -x /etc/init.d/redis ] && /etc/init.d/redis kill || echo_red "Redis 未安装"
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm force-quit || echo_info_red "PHP" "[ 未安装 ]" 59
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis kill || echo_info_red "Redis" "[ 未安装 ]" 59
     echo_green "done."
 }
 
 server_status() {
-    echo_blue "========= 基本信息 ========="
-    echo_info_yellow "硬件平台/处理器类型/内核版本" "$(uname -i)($(uname -m)) / $(uname -p) / $(uname -r)"
-    echo_info_yellow "CPU 型号(物理/逻辑/每个核数)" "$(cat /proc/cpuinfo|grep 'model name'|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/ /g') ($(cat /proc/cpuinfo|grep 'physical id'|sort|uniq|wc -l) / $(cat /proc/cpuinfo|grep 'processor'|wc -l) / $(cat /proc/cpuinfo|grep 'cpu cores'|uniq|awk '{print $4}'))"
-    echo_info_yellow "服务器时间" "$(date '+%Y年%m月%d日 %H:%M:%S')"
-    echo_info_yellow "防火墙状态" "$(firewall-cmd --stat)"
-    echo_blue "========= 内存使用 ========="
+    firewallstatus="$(firewall-cmd --state 2>&1)"
+
+    echo_title "基本信息"
+    echo_info_yellow "硬件平台/处理器类型/内核版本：" "$(uname -i)($(uname -m)) / $(uname -p) / $(uname -r)"
+    echo_info_yellow "CPU 型号(物理/逻辑/每个核数)：" "$(cat /proc/cpuinfo|grep 'model name'|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/ /g') ($(cat /proc/cpuinfo|grep 'physical id'|sort|uniq|wc -l) / $(cat /proc/cpuinfo|grep 'processor'|wc -l) / $(cat /proc/cpuinfo|grep 'cpu cores'|uniq|awk '{print $4}'))"
+    echo_info_yellow "服务器时间：" "$(date '+%Y年%m月%d日 %H:%M:%S')"
+    echo_info_yellow "防火墙状态：" "${firewallstatus}"
+
+    echo_title "内存使用"
     free -h
-    echo_blue "========= 存储容量 ========="
+    echo_title "存储容量"
     df -h /
-    echo_blue "========= 应用目录 ========="
-    du -h "${DATAHOME}" -d 1
-    echo_blue "========= 服务状态 ========="
-    [ -x /etc/init.d/nginx ] && /etc/init.d/nginx status || echo_red "Nginx 未安装"
-    if [ -x /etc/init.d/mysqld ]; then
-        /etc/init.d/mysqld status
+    # echo_title "应用目录"
+    # du -h "${DATAHOME}" -d 1
+
+    echo_title "服务状态"
+    /etc/init.d/nginx status
+    if [ -x /etc/init.d/mysqld ]; then /etc/init.d/mysqld status; else echo_info_red "MySQL" "[ 未安装 ]" 59; fi
+    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm status || echo_info_red "PHP" "[ 未安装 ]" 59
+    [ -x /etc/init.d/redis ] && /etc/init.d/redis status || echo_info_red "Redis" "[ 未安装 ]" 59
+    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi status || echo_info_red "Python uWSGI" "[ 未安装 ]" 59
+    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat status || echo_info_red "Tomcat:" "[ 未安装 ]" 59
+}
+
+install_vhost_cert() {
+    if [[ ${ACMETYPE} == 2 || ${ACMETYPE} == "dns" || ${ACMETYPE} == "DNS" ]]; then
+        /root/.acme.sh/acme.sh --issue --dns ${ACME_DNS} ${INSCERTDOMAIN} ${1}
     else
-        echo_red "MySQL 未安装"
+        /root/.acme.sh/acme.sh --issue --webroot /data/wwwroot/challenges  ${INSCERTDOMAIN} ${1}
     fi
-    [ -x /etc/init.d/php-fpm ] && /etc/init.d/php-fpm status || echo_red "PHP 未安装"
-    [ -x /etc/init.d/redis ] && /etc/init.d/redis status || echo_red "Redis 未安装"
-    [ -x /etc/init.d/uwsgi ] && /etc/init.d/uwsgi status || echo_red "Python uWSGI 未安装"
-    [ -x /etc/init.d/tomcat ] && /etc/init.d/tomcat status || echo_red "Tomcat 未安装"
+    /root/.acme.sh/acme.sh --installcert ${INSCERTDOMAIN} \
+        --cert-file ${DATAHOME}/wwwcert/${domain}/cert.pem \
+        --key-file ${DATAHOME}/wwwcert/${domain}/${domain}.key \
+        --fullchain-file ${DATAHOME}/wwwcert/${domain}/fullchain.pem
+}
+
+set_dns_conf() {
+    echo_blue "你选择的是 DNS 方式验证，请按提示输入以下信息。"
+    echo_yellow "请选择 DNS 服务商:"
+    echo_blue "1: CloudFlare"
+    echo_blue "2: DNSPod"
+    echo_blue "3: CloudXNS"
+    echo_blue "4: GoDaddy"
+    echo_blue "5: Aliyun"
+    read -r -p "请输入 (1, 2, 3, 4, 5): " DNSERVER
+
+    case "${DNSERVER}" in
+        1)
+            echo_blue "请通过 https://dash.cloudflare.com/profile 查询账户 API 的 Key 信息"
+            read -r -p "请输入 Key: " CF_KEY
+            read -r -p "请输入 Email: " CF_Email
+            export CF_KEY="${CF_KEY}"
+            export CF_Email="${CF_Email}"
+            ACME_DNS="dns_cf"
+            ;;
+        2)
+            echo_blue "请先登录 DNSPod 查询账户 API 的 Key 及 ID"
+            read -r -p "请输入 ID: " DP_Id
+            read -r -p "请输入 Key: " DP_Key
+            export DP_Id="${DP_Id}"
+            export DP_Key="${DP_Key}"
+            ACME_DNS="dns_dp"
+            ;;
+        3)
+            echo_blue "请先登录 CloudXNS.com 查询账户 API 的 Key 及 Secret"
+            read -r -p "请输入 Key: " CX_Key
+            read -r -p "请输入 Secret: " CX_Secret
+            export CX_Key="${CX_Key}"
+            export CX_Secret="${CX_Secret}"
+            ACME_DNS="dns_cx"
+            ;;
+        4)
+            echo_blue "请通过 https://developer.godaddy.com/keys/ 查询账户 API 的 Key 及 Secret"
+            read -r -p "请输入 Key: " GD_Key
+            read -r -p "请输入 Secret: " GD_Secret
+            export GD_Key="${GD_Key}"
+            export GD_Secret="${GD_Secret}"
+            ACME_DNS="dns_gd"
+            ;;
+        5)
+            echo_blue "请通过 https://ak-console.aliyun.com/#/accesskey 查询账户 API 的 Key 及 Secret"
+            read -r -p "请输入 Key: " Ali_Key
+            read -r -p "请输入 Email: " Ali_Secret
+            export Ali_Key="${Ali_Key}"
+            export Ali_Secret="${Ali_Secret}"
+            ACME_DNS="dns_ali"
+            ;;
+        *)
+            echo_red "DNS 服务商选择错误！"
+            exit 1
+            ;;
+    esac
 }
 
 add_vhost() {
@@ -226,57 +304,7 @@ add_vhost() {
     echo_blue "2: dns"
     read -r -p "请输入数字: " ACMETYPE
     if [[ ${ACMETYPE} == 2 || ${ACMETYPE} == "dns" || ${ACMETYPE} == "DNS" ]]; then
-        echo_blue "你选择的是 DNS 方式验证，请按提示输入以下信息。"
-        echo_yellow "请选择 DNS 服务商:"
-        echo_blue "1: CloudFlare"
-        echo_blue "2: DNSPod"
-        echo_blue "3: CloudXNS"
-        echo_blue "4: GoDaddy"
-        echo_blue "5: Aliyun"
-        read -r -p "请输入 (1, 2, 3, 4, 5): " DNSERVER
-
-        case "${DNSERVER}" in
-            1)
-                echo_blue "请通过 https://dash.cloudflare.com/profile 查询账户 API 的 Key 信息"
-                read -r -p "请输入 Key: " CF_KEY
-                read -r -p "请输入 Email: " CF_Email
-                export CF_KEY="${CF_KEY}"
-                export CF_Email="${CF_Email}"
-                ACME_DNS="dns_cf"
-                ;;
-            3)
-                echo_blue "请先登录 CloudXNS.com 查询账户 API 的 Key 及 Secret"
-                read -r -p "请输入 Key: " CX_Key
-                read -r -p "请输入 Secret: " CX_Secret
-                export CX_Key="${CX_Key}"
-                export CX_Secret="${CX_Secret}"
-                ACME_DNS="dns_cx"
-                ;;
-            4)
-                echo_blue "请通过 https://developer.godaddy.com/keys/ 查询账户 API 的 Key 及 Secret"
-                read -r -p "请输入 Key: " GD_Key
-                read -r -p "请输入 Secret: " GD_Secret
-                export GD_Key="${GD_Key}"
-                export GD_Secret="${GD_Secret}"
-                ACME_DNS="dns_gd"
-                ;;
-            5)
-                echo_blue "请通过 https://ak-console.aliyun.com/#/accesskey 查询账户 API 的 Key 及 Secret"
-                read -r -p "请输入 Key: " Ali_Key
-                read -r -p "请输入 Email: " Ali_Secret
-                export Ali_Key="${Ali_Key}"
-                export Ali_Secret="${Ali_Secret}"
-                ACME_DNS="dns_ali"
-                ;;
-            *)
-                echo_blue "请先登录 DNSPod 查询账户 API 的 Key 及 ID"
-                read -r -p "请输入 ID: " DP_Id
-                read -r -p "请输入 Key: " DP_Key
-                export DP_Id="${DP_Id}"
-                export DP_Key="${DP_Key}"
-                ACME_DNS="dns_dp"
-                ;;
-        esac
+        set_dns_conf
     fi
 
     echo ""
@@ -412,17 +440,18 @@ EOF
     mkdir -p "${DATAHOME}/wwwcert/${domain}"
     openssl dhparam -out "${DATAHOME}/wwwcert/${domain}/dhparams.pem" 2048
     # openssl rand 48 > "${DATAHOME}/wwwcert/${domain}/session_ticket.key"
-
-    if [[ ${ACMETYPE} == 2 || ${ACMETYPE} == "dns" || ${ACMETYPE} == "DNS" ]]; then
-        /root/.acme.sh/acme.sh --issue --dns ${ACME_DNS} ${INSCERTDOMAIN}
-    else
-        /root/.acme.sh/acme.sh --issue ${INSCERTDOMAIN} --webroot /data/wwwroot/challenges --log
-    fi
-    /root/.acme.sh/acme.sh --installcert ${INSCERTDOMAIN} \
-        --cert-file ${DATAHOME}/wwwcert/${domain}/cert.pem \
-        --key-file ${DATAHOME}/wwwcert/${domain}/${domain}.key \
-        --fullchain-file ${DATAHOME}/wwwcert/${domain}/fullchain.pem \
-        --reloadcmd  "service nginx force-reload"
+    install_vhost_cert
+    /etc/init.d/nginx force-reload
+    # if [[ ${ACMETYPE} == 2 || ${ACMETYPE} == "dns" || ${ACMETYPE} == "DNS" ]]; then
+    #     /root/.acme.sh/acme.sh --issue --dns ${ACME_DNS} ${INSCERTDOMAIN}
+    # else
+    #     /root/.acme.sh/acme.sh --issue ${INSCERTDOMAIN} --webroot /data/wwwroot/challenges --log
+    # fi
+    # /root/.acme.sh/acme.sh --installcert ${INSCERTDOMAIN} \
+    #     --cert-file ${DATAHOME}/wwwcert/${domain}/cert.pem \
+    #     --key-file ${DATAHOME}/wwwcert/${domain}/${domain}.key \
+    #     --fullchain-file ${DATAHOME}/wwwcert/${domain}/fullchain.pem \
+    #     --reloadcmd  "service nginx force-reload"
 
     cat >>"${DATAHOME}/wwwconf/nginx/${domain}.conf"<<EOF
 server
@@ -622,11 +651,11 @@ EOF
 }
 
 list_vhost() {
-    echo_blue "网站列表:"
+    echo_title "网站列表"
     i=1
     for site in ${DATAHOME}/wwwconf/nginx/*.conf; do
         [[ -e "$site" ]] || break
-        echo_info_green "[$i]" "${site:${#DATAHOME}+15:0-5}"
+        echo_info_green "[$i] " "${site:${#DATAHOME}+15:0-5}"
         let i=$i+1
     done
 }
@@ -657,8 +686,10 @@ vhost_menu() {
     esac
 }
 
-check_cert_date() {
+check_cert_status() {
+    echo_title "证书状态"
     /root/.acme.sh/acme.sh --list
+    echo ""
     NOW=$(date +%s)
     MNOW=$(date +%s -d "30 day")
     for certdir in $(ls ${DATAHOME}/wwwcert/); do
@@ -667,30 +698,121 @@ check_cert_date() {
             CERT_DATE_STR=${CERT_DATE#*=}
             SHOW_DATE=$(date "+%Y-%m-%d %H:%M:%S" -d "$CERT_DATE_STR")
             CERT_DATE_TIME=$(date "+%s" -d "$CERT_DATE_STR")
+
             if [ "$CERT_DATE_TIME" -ge "$MNOW" ]; then
                 echo_info_green "$certdir 到期日期" "$SHOW_DATE"
             elif [ "$CERT_DATE_TIME" -gt "$NOW" ]; then
                 echo_info_yellow "$certdir 到期日期" "$SHOW_DATE (即将到期，请更新证书)"
             else
-                echo_info_blue "$certdir 到期日期" "$SHOW_DATE (已过期，需通过 DNS 方式更新证书)"
+                echo_info_red "$certdir 到期日期" "$SHOW_DATE (已过期，需通过 DNS 方式更新证书)"
             fi
         fi
     done
 }
 
+apply_domain_cert() {
+    list_vhost
+    echo_blue "申请新的网站域名证书..."
+    while :;do
+        read -r -p "请输入网站域名: " domain
+        if [[ ${domain} != "" ]]; then
+            if [ ! -f "${DATAHOME}/wwwconf/nginx/${domain}.conf" ]; then
+                echo_red "网站 ${domain} 不存在！"
+            else
+                break
+            fi
+        else
+            echo_red "网站域名不能为空！"
+        fi
+    done
+
+    echo_yellow "请选择证书验证方式"
+    echo_blue "1: web"
+    echo_blue "2: dns"
+    read -r -p "请输入数字: " ACMETYPE
+    if [[ ${ACMETYPE} == 2 || ${ACMETYPE} == "dns" || ${ACMETYPE} == "DNS" ]]; then
+        set_dns_conf
+    fi
+    install_vhost_cert
+    /etc/init.d/nginx force-reload
+
+    echo_green "证书申请成功！请编辑Nginx配置文件，添加证书信息。"
+}
+
+update_one_domain_cert() {
+    if [ ! -f /root/.acme.sh/${domain}/${domain}.conf ]; then
+        echo_red "网站 ${domain} 配置文件不存在！请输入正确的网站域名，或者通过以下命令新申请网站证书"
+        echo_yellow "${MYNAME} cert new "
+    fi
+
+    . /root/.acme.sh/${domain}/${domain}.conf
+
+    if echo $Le_Webroot | grep dns >/dev/null; then
+        ACMETYPE="dns"
+        ACME_DNS=$Le_Webroot
+    else
+        echo_blue "当前网站(${domain})的证书申请接口为WEB方式，是否改用DNS接口？"
+        read -r -p "是(Y)/否(N): " CHANGEACMETYPE
+        if [[ ${CHANGEACMETYPE} == "y" || ${CHANGEACMETYPE} == "Y" ]]; then
+            ACMETYPE="dns"
+            set_dns_conf
+        else
+            ACMETYPE="web"
+            NOW=$(date +%s)
+            CERT_DATE=$(openssl x509 -in ${DATAHOME}/wwwcert/"${domain}"/cert.pem -noout -enddate)
+            CERT_DATE_TIME=$(date "+%s" -d "${CERT_DATE#*=}")
+            if [ "$CERT_DATE_TIME" -lt "$NOW" ]; then
+                echo_red "$domain 证书已过期，需通过 DNS 方式更新证书!"
+                exit 1
+            fi
+        fi
+    fi
+
+    INSCERTDOMAIN="-d ${Le_Domain}"
+    if [[ ${Le_Alt} != "no" ]]; then
+        INSCERTDOMAIN="${INSCERTDOMAIN} -d ${Le_Alt}"
+    fi
+
+    install_vhost_cert "--force"
+}
+
+update_domain_cert() {
+    list_vhost
+    echo ""
+    echo_blue "更新网站域名证书..."
+    read -r -p "请输入网站域名(不输入将更新全部网站证书): " domain
+    if [[ ${domain} != "" ]]; then
+        update_one_domain_cert
+    else
+        for certdir in $(ls ${DATAHOME}/wwwcert/); do
+            if [ -f "${DATAHOME}/wwwcert/${certdir}/cert.pem" ]; then
+                domain=$certdir
+                update_one_domain_cert
+            fi
+        done
+    fi
+    /etc/init.d/nginx force-reload
+}
+
 cert_menu() {
     case "$1" in
-        check)
-            check_cert_date
+        check|status)
+            check_cert_status
             ;;
         update)
+            update_domain_cert
+            ;;
+        new)
+            apply_domain_cert
+            ;;
+        cron)
             /root/.acme.sh/acme.sh --cron  # acme.sh --cron -f  强制
             ;;
         auto)
             /root/.acme.sh/acme.sh --install-cronjob
             ;;
         *)
-            echo_yellow "Usage: ${MYNAME} cert {check|update|auto}"
+            echo_yellow "Usage: ${MYNAME} cert {check|status|update|new|cron|auto}"
             exit 1
             ;;
     esac
@@ -714,6 +836,7 @@ case "${arg1}" in
         ;;
     status)
         server_status
+        check_cert_status
         ;;
     test)
         server_test
@@ -754,7 +877,7 @@ case "${arg1}" in
         echo_yellow "Usage: ${MYNAME} {start|stop|reload|restart|kill|status|test}"
         echo_yellow "Usage: ${MYNAME} {nginx|mysql|php-fpm|redis|uwsgi|tomcat} {start|stop|reload|restart|kill|status}"
         echo_yellow "Usage: ${MYNAME} vhost {add|list|del}"
-        echo_yellow "Usage: ${MYNAME} cert {check|update|auto}"
+        echo_yellow "Usage: ${MYNAME} cert {check|status|update|new|cron|auto}"
         echo_yellow "Usage: ${MYNAME} upadte"
         ;;
 esac

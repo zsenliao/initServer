@@ -384,6 +384,7 @@ export HISTSIZE=10000
 export SAVEHIST=10000
 export HISTFILE=~/.zsh_history
 export PATH=/usr/local/bin:\$PATH
+export EDITOR=/usr/bin/local/vim
 
 export CLICOLOR=1
 alias ll="ls -alF"
@@ -447,6 +448,11 @@ zstyle ":completion:*:processes" command "ps -au\$USER"
 bindkey "^[[A" history-beginning-search-backward
 bindkey "^[[B" history-beginning-search-forward
 EOF
+
+    if [[ "${USERNAME}" != "" ]]; then
+        cp ~/.zshrc /home/${USERNAME}/
+        chown ${USERNAME}:${USERNAME} /home/${USERNAME}/
+    fi
 }
 
 install_vim() {
@@ -484,6 +490,12 @@ install_vim() {
 
     wget -O ~/.vim/syntax/python.wim https://www.vim.org/scripts/download_script.php?src_id=21056
     echo "au BufNewFile,BufRead *.py setf python" >> ~/.vim/filetype.vim
+
+    if [[ "${USERNAME}" != "" ]]; then
+        cp ~/.vimrc /home/${USERNAME}/
+        cp -r ~/.vim /home/${USERNAME}/
+        chown ${USERNAME}:${USERNAME} /home/${USERNAME}/
+    fi
 }
 
 install_htop() {
@@ -1321,8 +1333,7 @@ install_php() {
     yum -y remove php* libzip
     rpm -qa | grep php
     rpm -e php-mysql php-cli php-gd php-common php --nodeps
-    yum -y install libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libicu-devel
-    yum install -y libmcrypt libmcrypt-devel mcrypt mhash
+    yum install -y libmcrypt libmcrypt-devel mcrypt mhash oniguruma-devel libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libicu-devel
 
     wget_cache "https://libzip.org/download/libzip-${LIBZIP_VER}.tar.gz" "libzip-${LIBZIP_VER}.tar.gz" "libzip"
     tar zxvf libzip-${LIBZIP_VER}.tar.gz || return 255
@@ -1340,8 +1351,8 @@ install_php() {
         MODULE_NAME="PHP"
     fi
 
-    mkdir libzip-1.5.1/build 
-    cd libzip-1.5.1/build
+    mkdir libzip-${LIBZIP_VER}/build 
+    cd libzip-${LIBZIP_VER}/build
     cmake ..
     make && make install || make_result="fail"
     cd ../..
@@ -2200,8 +2211,9 @@ cat >> ~/.bashrc << EOF
 
 #export HISTCONTROL=erasedups  # 忽略全部重复命令的历史记录，默认是 ignoredups 忽略连续重复的
 export HISTIGNORE="pwd:ls:ll:l:"
+export EDITOR=/usr/bin/local/vim
 
-alias ll="ls -alF"
+alias ll="ls -alhF"
 alias la="ls -A"
 alias l="ls -CF"
 alias lbys="ls -alhS"
