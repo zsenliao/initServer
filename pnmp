@@ -655,7 +655,7 @@ list_vhost() {
     i=1
     for site in ${DATAHOME}/wwwconf/nginx/*.conf; do
         [[ -e "$site" ]] || break
-        echo_info_green "[$i] " "${site:${#DATAHOME}+15:0-5}"
+        echo_info_green "[$i]" "${site:${#DATAHOME}+15:0-5}" 5
         let i=$i+1
     done
 }
@@ -700,11 +700,11 @@ check_cert_status() {
             CERT_DATE_TIME=$(date "+%s" -d "$CERT_DATE_STR")
 
             if [ "$CERT_DATE_TIME" -ge "$MNOW" ]; then
-                echo_info_green "$certdir 到期日期" "$SHOW_DATE"
+                echo_info_green "$certdir" "到期日期: $SHOW_DATE" 36
             elif [ "$CERT_DATE_TIME" -gt "$NOW" ]; then
-                echo_info_yellow "$certdir 到期日期" "$SHOW_DATE (即将到期，请更新证书)"
+                echo_info_yellow "$certdir" "到期日期: $SHOW_DATE (即将到期，请更新证书)" 36
             else
-                echo_info_red "$certdir 到期日期" "$SHOW_DATE (已过期，需通过 DNS 方式更新证书)"
+                echo_info_red "$certdir" "到期日期: $SHOW_DATE (已过期，需通过 DNS 方式更新证书)" 36
             fi
         fi
     done
