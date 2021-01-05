@@ -15,16 +15,16 @@ else
 fi
 
 CMAKE_VER=3.16.2
-PYTHON3_VER=3.7.6
-NODEJS_VER=v12.14.0
+PYTHON3_VER=3.8.6
+NODEJS_VER=v12.19.0
 STARTSTOPDAEMON_VER=1.17.27
-NGINX_VER=1.17.7
-PHP_VER=7.4.1
+NGINX_VER=1.18.0
+PHP_VER=7.4.13
 MCRYPT_VER=1.0.3
-REDIS_VER=5.0.7
+REDIS_VER=6.0.8
 MYSQL_VER=5.7.21
 TOMCAT_VER=9.0.30
-HTOP_VER=2.2.0
+HTOP_VER=3.0.2
 LIBZIP_VER=1.5.2
 OPENSSL_VER=1.1.1d
 
@@ -471,24 +471,263 @@ install_vim() {
     fi
 
     echo_blue "[+] 安装 vim 插件..."
-    curl https://raw.githubusercontent.com/wklken/vim-for-server/master/vimrc > ~/.vimrc
+    cat > ~/.vimrc<<EOF
+" leader
+let mapleader = ','
+let g:mapleader = ','
+
+" syntax
+syntax on
+
+" history : how many lines of history VIM has to remember
+set history=2000
+
+" filetype
+filetype on
+" Enable filetype plugins
+filetype plugin on
+filetype indent on
+
+" base
+set nocompatible                " don't bother with vi compatibility
+set autoread                    " reload files when changed on disk, i.e. via `git checkout`
+set shortmess=atI
+
+set magic                       " For regular expressions turn magic on
+set title                       " change the terminal's title
+set nobackup                    " do not keep a backup file
+
+set novisualbell                " turn off visual bell
+set noerrorbells                " don't beep
+set visualbell t_vb=            " turn off error beep/flash
+set t_vb=
+set tm=500
+
+" show location
+set cursorcolumn
+set cursorline
+
+" movement
+set scrolloff=7                 " keep 3 lines when scrolling
+
+" show
+set ruler                       " show the current row and column
+set number                      " show line numbers
+set nowrap
+set showcmd                     " display incomplete commands
+set showmode                    " display current modes
+set showmatch                   " jump to matches when entering parentheses
+set matchtime=2                 " tenths of a second to show the matching parenthesis
+
+" search
+set hlsearch                    " highlight searches
+set incsearch                   " do incremental searching, search as you type
+set ignorecase                  " ignore case when searching
+set smartcase                   " no ignorecase if Uppercase char present
+
+" tab
+set expandtab                   " expand tabs to spaces
+set smarttab
+set shiftround
+
+" indent
+set autoindent smartindent shiftround
+set shiftwidth=4
+set tabstop=4
+set softtabstop=4                " insert mode tab and backspace use 4 spaces
+
+" NOT SUPPORT
+" fold
+set foldenable
+set foldmethod=indent
+set foldlevel=99
+let g:FoldMethod = 0
+map <leader>zz :call ToggleFold()<cr>
+fun! ToggleFold()
+    if g:FoldMethod == 0
+        exe "normal! zM"
+        let g:FoldMethod = 1
+    else
+        exe "normal! zR"
+        let g:FoldMethod = 0
+    endif
+endfun
+
+" encoding
+set encoding=utf-8
+set fileencodings=ucs-bom,utf-8,cp936,gb18030,big5,euc-jp,euc-kr,latin1
+set termencoding=utf-8
+set ffs=unix,dos,mac
+set formatoptions+=m
+set formatoptions+=B
+
+" select & complete
+set selection=inclusive
+set selectmode=mouse,key
+
+set completeopt=longest,menu
+set wildmenu                           " show a navigable menu for tab completion"
+set wildmode=longest,list,full
+set wildignore=*.o,*~,*.pyc,*.class
+
+" others
+set backspace=indent,eol,start  " make that backspace key work the way it should
+set whichwrap+=<,>,h,l
+
+" if this not work ,make sure .viminfo is writable for you
+if has("autocmd")
+  au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
+endif
+
+" NOT SUPPORT
+" Enable basic mouse behavior such as resizing buffers.
+" set mouse=a
+
+
+" ============================ theme and status line ============================
+
+" theme
+set background=dark
+colorscheme desert
+
+" set mark column color
+hi! link SignColumn   LineNr
+hi! link ShowMarksHLl DiffAdd
+hi! link ShowMarksHLu DiffChange
+
+" status line
+set statusline=%<%f\ %h%m%r%=%k[%{(&fenc==\"\")?&enc:&fenc}%{(&bomb?\",BOM\":\"\")}]\ %-14.(%l,%c%V%)\ %P
+set laststatus=2   " Always show the status line - use 2 lines for the status bar
+
+
+" ============================ specific file type ===========================
+
+autocmd FileType python set tabstop=4 shiftwidth=4 expandtab ai
+autocmd FileType ruby set tabstop=2 shiftwidth=2 softtabstop=2 expandtab ai
+autocmd BufRead,BufNew *.md,*.mkd,*.markdown  set filetype=markdown.mkd
+
+autocmd BufNewFile *.sh,*.py exec ":call AutoSetFileHead()"
+function! AutoSetFileHead()
+    " .sh
+    if &filetype == 'sh'
+        call setline(1, "\#!/bin/bash")
+    endif
+
+    " python
+    if &filetype == 'python'
+        call setline(1, "\#!/usr/bin/env python")
+        call append(1, "\# encoding: utf-8")
+    endif
+
+    normal G
+    normal o
+    normal o
+endfunc
+
+autocmd FileType c,cpp,java,go,php,javascript,puppet,python,rust,twig,xml,yml,perl autocmd BufWritePre <buffer> :call <SID>StripTrailingWhitespaces()
+fun! <SID>StripTrailingWhitespaces()
+    let l = line(".")
+    let c = col(".")
+    %s/\s\+$//e
+    call cursor(l, c)
+endfun
+
+" ============================ key map ============================
+
+nnoremap k gk
+nnoremap gk k
+nnoremap j gj
+nnoremap gj j
+
+map <C-j> <C-W>j
+map <C-k> <C-W>k
+map <C-h> <C-W>h
+map <C-l> <C-W>l
+
+nnoremap <F2> :set nu! nu?<CR>
+nnoremap <F3> :set list! list?<CR>
+nnoremap <F4> :set wrap! wrap?<CR>
+set pastetoggle=<F5>            "    when in insert mode, press <F5> to go to
+                                "    paste mode, where you can paste mass data
+                                "    that won't be autoindented
+au InsertLeave * set nopaste
+nnoremap <F6> :exec exists('syntax_on') ? 'syn off' : 'syn on'<CR>
+
+" kj 替换 Esc
+inoremap kj <Esc>
+
+" Quickly close the current window
+nnoremap <leader>q :q<CR>
+" Quickly save the current file
+nnoremap <leader>w :w<CR>
+
+" select all
+map <Leader>sa ggVG"
+
+" remap U to <C-r> for easier redo
+nnoremap U <C-r>
+
+" Swap implementations of ` and ' jump to markers
+" By default, ' jumps to the marked line, ` jumps to the marked line and
+" column, so swap them
+nnoremap ' `
+nnoremap ` '
+
+" switch # *
+" nnoremap # *
+" nnoremap * #
+
+"Keep search pattern at the center of the screen."
+nnoremap <silent> n nzz
+nnoremap <silent> N Nzz
+nnoremap <silent> * *zz
+nnoremap <silent> # #zz
+nnoremap <silent> g* g*zz
+
+" remove highlight
+noremap <silent><leader>/ :nohls<CR>
+
+"Reselect visual block after indent/outdent.调整缩进后自动选中，方便再次操作
+vnoremap < <gv
+vnoremap > >gv
+
+" y$ -> Y Make Y behave like other capitals
+map Y y$
+
+"Map ; to : and save a million keystrokes
+" ex mode commands made easy 用于快速进入命令行
+nnoremap ; :
+
+" Shift+H goto head of the line, Shift+L goto end of the line
+nnoremap H ^
+nnoremap L $
+
+" save
+cmap w!! w !sudo tee >/dev/null %
+
+" command mode, ctrl-a to head， ctrl-e to tail
+cnoremap <C-j> <t_kd>
+cnoremap <C-k> <t_ku>
+cnoremap <C-a> <Home>
+cnoremap <C-e> <End>
+EOF
 
     mkdir -p ~/.vim/syntax
 
-    wget -O ~/.vim/syntax/nginx.vim http://www.vim.org/scripts/download_script.php?src_id=19394
+    wget -O ~/.vim/syntax/nginx.vim "http://www.vim.org/scripts/download_script.php?src_id=19394"
     echo "au BufRead,BufNewFile ${INSHOME}/wwwconf/nginx/*,/usr/local/nginx/conf/* if &ft == '' | setfiletype nginx | endif " >> ~/.vim/filetype.vim
 
-    wget -O ini.vim.zip https://www.vim.org/scripts/download_script.php?src_id=10629
+    wget -O ini.vim.zip "https://www.vim.org/scripts/download_script.php?src_id=10629"
     unzip ini.vim.zip && mv vim-ini-*/ini.vim ~/.vim/syntax/ini.vim
     rm -rf vim-ini-* ini.vim.zip
     echo "au BufNewFile,BufRead *.ini,*/.hgrc,*/.hg/hgrc setf ini" >> ~/.vim/filetype.vim
 
-    wget -O php.vim.tar.gz https://www.vim.org/scripts/download_script.php?src_id=8651
+    wget -O php.vim.tar.gz "https://www.vim.org/scripts/download_script.php?src_id=8651"
     tar zxvf php.vim.tar.gz && mv syntax/php.vim ~/.vim/syntax/php.vim
     rm -rf syntax php.vim.tar.gz
     echo "au BufNewFile,BufRead *.php setf php" >> ~/.vim/filetype.vim
 
-    wget -O ~/.vim/syntax/python.wim https://www.vim.org/scripts/download_script.php?src_id=21056
+    wget -O ~/.vim/syntax/python.wim "https://www.vim.org/scripts/download_script.php?src_id=21056"
     echo "au BufNewFile,BufRead *.py setf python" >> ~/.vim/filetype.vim
 
     if [[ "${USERNAME}" != "" ]]; then
@@ -500,7 +739,7 @@ install_vim() {
 
 install_htop() {
     yum install -y ncurses-devel
-    wget_cache "https://hisham.hm/htop/releases/${HTOP_VER}/htop-${HTOP_VER}.tar.gz" "htop-${HTOP_VER}.tar.gz"
+    wget_cache "https://bintray.com/htop/source/download_file?file_path=htop-${HTOP_VER}.tar.gz" "htop-${HTOP_VER}.tar.gz"
     tar zxvf htop-${HTOP_VER}.tar.gz || return 255
     cd htop-${HTOP_VER}
     ./configure
@@ -514,7 +753,7 @@ install_ikev2() {
 
     mkdir ikev2
     cd ikev2
-    wget -c https://raw.githubusercontent.com/quericy/one-key-ikev2-vpn/master/one-key-ikev2.sh
+    wget -c "https://raw.githubusercontent.com/quericy/one-key-ikev2-vpn/master/one-key-ikev2.sh"
     chmod +x one-key-ikev2.sh
     bash one-key-ikev2.sh
     cd ..
@@ -1049,7 +1288,7 @@ EOF
 
 install_start-stop-daemon() {
     ins_begin "start-stop-daemon"
-
+# 1.17.27
     yum install -y ncurses-devel
     wget_cache "http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${STARTSTOPDAEMON_VER}.tar.xz" "start-stop-daemon_${STARTSTOPDAEMON_VER}.tar.xz" "start-stop-daemon"
     mkdir start-stop-daemon_${STARTSTOPDAEMON_VER}
@@ -1601,6 +1840,13 @@ EOF
 }
 
 install_redis() {
+    yum -y install centos-release-scl
+    yum -y install devtoolset-9-gcc devtoolset-9-gcc-c++ devtoolset-9-binutils
+    source /opt/rh/devtoolset-9/enable
+    gcc -v
+    # echo "source /opt/rh/devtoolset-9/enable" >> /etc/profile
+    # echo "source /opt/rh/devtoolset-9/enable" >> ~/.zshrc
+
     if [[ ${INSSTACK} != "auto" ]]; then
         echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
         read -r -p "密码: " REDISPWD
@@ -1633,7 +1879,7 @@ install_redis() {
     sed -i "s/^# bind 127.0.0.1/bind 127.0.0.1/g" /usr/local/redis/etc/redis.conf
     sed -i "s#^pidfile /var/run/redis_6379.pid#pidfile /usr/local/redis/run/redis.pid#g" /usr/local/redis/etc/redis.conf
     sed -i "s/^# requirepass.*/requirepass ${REDISPWD}/g" /usr/local/redis/etc/redis.conf
-    sed -i "s#logfile ""#logfile ${INSHOME}/wwwlogs/redis.log#g" /usr/local/redis/etc/redis.conf
+    sed -i "s#logfile \"\"#logfile ${INSHOME}/wwwlogs/redis.log#g" /usr/local/redis/etc/redis.conf
     sed -i "s#dir ./#dir ${REDISHOME}/#g" /usr/local/redis/etc/redis.conf
 
     cat > /etc/rc.d/init.d/redis<<EOF
@@ -2080,7 +2326,7 @@ register_management-tool() {
             fi
         done
     fi
-    wget https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp -O /usr/local/bin/${MYNAME}
+    wget "https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp" -O /usr/local/bin/${MYNAME}
     sed -i "s|/data|${INSHOME}|g" /usr/local/bin/${MYNAME}
     chmod +x /usr/local/bin/${MYNAME}
 }
@@ -2401,7 +2647,7 @@ if [[ ${INSSTACK} != "auto" ]]; then
     echo_blue "提示：阿里云/腾讯云服务器封掉了 25 端口，默认方式发送邮件不成功(可以申请解封)"
     read -r -p "是(Y)/否(N): " SETSMTP
 fi
-if [[ ${SETSMTP} == "y" || ${SETSMTP} == "y" ]]; then
+if [[ ${SETSMTP} == "y" || ${SETSMTP} == "Y" ]]; then
     setting_sendmail_conf
 fi
 
@@ -2409,7 +2655,7 @@ if [[ ${INSSTACK} != "auto" ]]; then
     echo_yellow "是否安装 shellMonitor 系统监控工具?"
     read -r -p "是(Y)/否(N): " INSMONITOR
 fi
-if [[ ${INSMONITOR} == "y" || ${INSMONITOR} == "y" ]]; then
+if [[ ${INSMONITOR} == "y" || ${INSMONITOR} == "Y" ]]; then
     install_shellMonitor
 fi
 

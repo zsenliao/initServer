@@ -398,7 +398,13 @@ harakiri=60
 post-buffering=131072
 buffer-size=65536
 socket-timeout=10
+
+log-master=true  # log 在 master 中处理
+threaded-logger=true  #  使用单独的线程处理插件化 logger
 daemonize=${DATAHOME}/wwwlogs/${domain}.uwsgi.log
+logformat="%(method) %(uri) %(proto)" returning with status %(status)
+# 默认
+# log-format=[pid: %(pid)] %(addr) (%(user)) {%(vars) vars in %(pktsize) bytes} [%(ctime)] %(method) %(uri) => generated %(rsize) bytes in %(msecs) msecs (%(proto) %(status)) %(headers) headers in %(hsize) bytes (%(switches) switches on core %(core))
 EOF
     fi
 
@@ -820,15 +826,18 @@ cert_menu() {
 
 case "${arg1}" in
     start)
+        chown nobody:nobody -R ${DATAHOME}/wwwroot
         server_start
         ;;
     stop)
         server_stop
         ;;
     restart)
+        chown nobody:nobody -R ${DATAHOME}/wwwroot
         server_restart
         ;;
     reload)
+        chown nobody:nobody -R ${DATAHOME}/wwwroot
         server_reload
         ;;
     kill)
@@ -842,18 +851,21 @@ case "${arg1}" in
         server_test
         ;;
     nginx)
+        chown nobody:nobody -R ${DATAHOME}/wwwroot
         /etc/init.d/nginx ${arg2}
         ;;
     mysql)
         /etc/init.d/mysqld ${arg2}
         ;;
     php-fpm)
+        chown nobody:nobody -R ${DATAHOME}/wwwroot
         /etc/init.d/php-fpm ${arg2}
         ;;
     redis)
         /etc/init.d/redis ${arg2}
         ;;
     uwsgi)
+        chown nobody:nobody -R ${DATAHOME}/wwwroot
         /etc/init.d/uwsgi ${arg2}
         ;;
     tomcat)

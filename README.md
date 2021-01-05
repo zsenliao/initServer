@@ -1,11 +1,12 @@
 # initServer
+
 一个服务器初始化脚本工具。脚本借鉴了 [lnmp](https://github.com/licess/lnmp) 的许多写法，Nginx 的编译安装及配置参考了 [本博客开始支持 TLS 1.3](https://imququ.com/post/enable-tls-1-3.html) 的方式。在此感谢两位大大。
 
 ## 使用方式
 
 `curl https://raw.githubusercontent.com/zsenliao/initServer/master/initServer.sh -O`
 
-> 也可以通过在命令末尾添加 ` | tee install-info.log` 的方式来记录安装日志
+> 也可以通过在命令末尾添加 `|tee install-info.log` 的方式来记录安装日志
 
 ## 主要功能
 
@@ -52,6 +53,7 @@
 > * 站点强制使用 `HTTPS`
 
 ## TODO
+
 * [x] 站点目录自定义更改
 * [x] 管理工具自定义命名
 * [x] 选择安装是否 [shellMonitor](https://github.com/zsenliao/shellMonitor)
