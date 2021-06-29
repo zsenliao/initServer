@@ -18,11 +18,11 @@ CMAKE_VER=3.16.2
 PYTHON3_VER=3.8.6
 NODEJS_VER=v12.19.0
 STARTSTOPDAEMON_VER=1.17.27
-NGINX_VER=1.18.0
-PHP_VER=7.4.13
+NGINX_VER=1.20.1
+PHP_VER=7.4.20
 MCRYPT_VER=1.0.3
 REDIS_VER=6.0.8
-MYSQL_VER=5.7.21
+MYSQL_VER=8.0.25
 TOMCAT_VER=9.0.30
 HTOP_VER=3.0.2
 LIBZIP_VER=1.5.2
@@ -795,7 +795,7 @@ install_acme() {
 
 install_uwsgi() {
     pip3 install uwsgi
-    ln -sf /usr/local/python3.7/bin/uwsgi /usr/local/bin/uwsgi
+    ln -sf /usr/local/python3/bin/uwsgi /usr/local/bin/uwsgi
 
     TMPCONFDIR=${INSHOME}/wwwconf/uwsgi
     mkdir -p ${TMPCONFDIR}
@@ -824,7 +824,7 @@ install_uwsgi() {
 
 DESC="Python uWSGI"
 NAME=uwsgi
-DAEMON=/usr/local/python3.7/bin/uwsgi
+DAEMON=/usr/local/python3/bin/uwsgi
 CONFIGDIR=${TMPCONFDIR}
 PIDDIR=/tmp
 
@@ -977,23 +977,22 @@ install_python3() {
     tar xf Python-${PYTHON3_VER}.tgz || return 255
 
     cd Python-${PYTHON3_VER}
-    ./configure --prefix=/usr/local/python3.7 --enable-optimizations
+    ./configure --prefix=/usr/local/python3 --enable-optimizations
     make -j ${CPUS} && make install || make_result="fail"
     cd ..
     if [[ $make_result == "fail" ]]; then
         return 1
     fi
 
-    ln -sf /usr/local/python3.7/bin/python3 /usr/local/bin/python3
-    ln -sf /usr/local/python3.7/bin/2to3 /usr/local/bin/2to3
-    ln -sf /usr/local/python3.7/bin/idle3 /usr/local/bin/idle3
-    ln -sf /usr/local/python3.7/bin/pydoc3 /usr/local/bin/pydoc3
-    ln -sf /usr/local/python3.7/bin/python3.7-config /usr/local/bin/python3.7-config
-    ln -sf /usr/local/python3.7/bin/python3-config /usr/local/bin/python3-config
-    ln -sf /usr/local/python3.7/bin/pyvenv /usr/local/bin/pyvenv
+    ln -sf /usr/local/python3/bin/python3 /usr/local/bin/python3
+    ln -sf /usr/local/python3/bin/2to3 /usr/local/bin/2to3
+    ln -sf /usr/local/python3/bin/idle3 /usr/local/bin/idle3
+    ln -sf /usr/local/python3/bin/pydoc3 /usr/local/bin/pydoc3
+    ln -sf /usr/local/python3/bin/python3-config /usr/local/bin/python3-config
+    ln -sf /usr/local/python3/bin/pyvenv /usr/local/bin/pyvenv
 
     curl https://bootstrap.pypa.io/get-pip.py | python3
-    ln -sf /usr/local/python3.7/bin/pip3 /usr/local/bin/pip3
+    ln -sf /usr/local/python3/bin/pip3 /usr/local/bin/pip3
     pip3 install --upgrade pip
     install_uwsgi
 
@@ -2273,6 +2272,11 @@ EOF
         fi
         ;;
     esac
+}
+
+install_gitlab_ci_runner() {
+    curl -L https://packages.gitlab.com/install/repositories/runner/gitlab-ci-multi-runner/script.rpm.sh | bash
+    yum install -y gitlab-ci-multi-runner
 }
 
 install_shellMonitor() {
