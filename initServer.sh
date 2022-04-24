@@ -1,5 +1,5 @@
 #!/bin/bash
-PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+PATH=/usr/local/bin:/usr/local/sbin:/bin:/sbin:/usr/bin:/usr/sbin:~/bin
 export PATH
 
 INSSTACK=$1
@@ -14,19 +14,22 @@ else
     INSTITLE="安装"
 fi
 
-CMAKE_VER=3.16.2
-PYTHON3_VER=3.8.6
-NODEJS_VER=v12.19.0
-STARTSTOPDAEMON_VER=1.17.27
-NGINX_VER=1.20.1
-PHP_VER=7.4.20
-MCRYPT_VER=1.0.3
-REDIS_VER=6.0.8
-MYSQL_VER=8.0.25
+CMAKE_VER=3.25.2
+PYTHON3_VER=3.11.2
+NODEJS_VER=v16.14.2
+STARTSTOPDAEMON_VER=1.21.7
+NGINX_VER=1.23.3
+PHP_VER=8.2.2
+PHP_MCRYPT_VER=1.0.5
+PHP_IMAGICK_VER=3.7.0
+REDIS_VER=6.2.10
+MYSQL_VER=8.0.32
 TOMCAT_VER=9.0.30
-HTOP_VER=3.0.2
-LIBZIP_VER=1.5.2
-OPENSSL_VER=1.1.1d
+HTOP_VER=3.2.2
+LIBZIP_VER=1.9.2
+OPENSSL_VER=1.1.1t
+GIT_VER=2.38.1
+PERL_VER=5.34.1
 
 get_server_ip() {
     local CURLTXT
@@ -52,6 +55,13 @@ check_hosts() {
     else
         echo "127.0.0.1 localhost.localdomain localhost" >> /etc/hosts
     fi
+
+    # 解决无法从 github.com 拉取文件导致安装失败的问题
+    echo "140.82.114.4 github.com" >> /etc/hosts
+    echo "199.232.69.194 github.global.ssl.fastly.net" >> /etc/hosts
+    echo "185.199.108.153 assets-cdn.github.com" >> /etc/hosts
+    echo "140.82.114.10 codeload.github.com" >> /etc/hosts
+    echo "185.199.108.133 raw.githubusercontent.com" >> /etc/hosts
 }
 
 disable_selinux() {
@@ -88,13 +98,16 @@ get_module_ver() {
     MODULE_CLI=$(echo ${1-$MODULE_NAME} | tr '[:upper:]' '[:lower:]')
 
     if [[ $MODULE_CLI == "nginx" ]]; then
-        command -v nginx 1>/dev/null && MODULE_VER=$(cat /usr/local/nginx/version.txt 2>/dev/null || echo "8.8.8.8") || MODULE_VER=""
+        # command -v nginx 1>/dev/null && MODULE_VER=$(cat /usr/local/nginx/version.txt 2>/dev/null || echo "0.1.0") || MODULE_VER=""
+        MODULE_VER=$(nginx -V 2>/dev/null)
     elif [[ $MODULE_CLI == "vim" ]]; then
         MODULE_VER=$(echo $(vim --version 2>/dev/null) | awk -F ')' '{print $1}')
     elif [[ $MODULE_CLI == "redis" ]]; then
         MODULE_VER=$(redis-server --version 2>/dev/null)
     elif [[ $MODULE_CLI == "nodejs" ]]; then
         MODULE_VER=$(node --version 2>/dev/null)
+    elif [[ $MODULE_CLI == "openssl" ]]; then
+        MODULE_VER=$(openssl version 2>/dev/null)
     else
         MODULE_VER=$(${MODULE_CLI} --version 2>/dev/null)
     fi
@@ -110,6 +123,8 @@ ins_end() {
 }
 
 show_ver() {
+    echo ""
+    echo_blue "=========================================================="
     get_module_ver
     if [ -n "${MODULE_VER}" ]; then
         echo_green "当前已安装 ${MODULE_NAME}, 版本：${MODULE_VER}"
@@ -120,6 +135,8 @@ show_ver() {
 }
 
 wget_cache() {
+    cd "${CUR_DIR}/src"
+
     if [ ! -f "$2" ]; then
         if ! wget -c "$1" -O "$2"; then
             rm -f "$2"
@@ -350,21 +367,6 @@ ssh_setting() {
     fi
 }
 
-install_git() {
-    yum install -y autoconf zlib-devel curl-devel openssl-devel perl cpio expat-devel gettext-devel openssl zlib gcc perl-ExtUtils-MakeMaker
-
-    wget_cache "https://github.com/git/git/archive/master.tar.gz" "git-master.tar.gz"
-    tar xzf git-master.tar.gz || return 255
-
-    cd git-master
-    make configure && ./configure --prefix=/usr/local
-    make -j ${CPUS} && make install || make_result="fail"
-    cd ..
-    if [[ $make_result == "fail" ]]; then
-        return 1
-    fi
-}
-
 install_zsh() {
     yum install -y zsh
     chsh -s /bin/zsh
@@ -384,10 +386,10 @@ export HISTSIZE=10000
 export SAVEHIST=10000
 export HISTFILE=~/.zsh_history
 export PATH=/usr/local/bin:\$PATH
-export EDITOR=/usr/bin/local/vim
+export EDITOR=/usr/local/bin/vim
 
 export CLICOLOR=1
-alias ll="ls -alF"
+alias ll="ls -alhF"
 alias la="ls -A"
 alias l="ls -CF"
 alias lbys="ls -alhS"
@@ -457,15 +459,13 @@ EOF
 
 install_vim() {
     wget_cache "https://github.com/vim/vim/archive/master.tar.gz" "vim-master.tar.gz"
-    tar zxvf vim-master.tar.gz || return 255
+    tar zxf vim-master.tar.gz || return 255
 
     yum uninstall -y vim
     yum remove -y vim
-    yum install -y ncurses-devel
 
     cd vim-master/src
     make -j && make install || make_result="fail"
-    cd ../..
     if [[ $make_result == "fail" ]]; then
         return 1
     fi
@@ -705,7 +705,7 @@ nnoremap L $
 " save
 cmap w!! w !sudo tee >/dev/null %
 
-" command mode, ctrl-a to head， ctrl-e to tail
+" command mode, ctrl-a to head, ctrl-e to tail
 cnoremap <C-j> <t_kd>
 cnoremap <C-k> <t_ku>
 cnoremap <C-a> <Home>
@@ -723,7 +723,7 @@ EOF
     echo "au BufNewFile,BufRead *.ini,*/.hgrc,*/.hg/hgrc setf ini" >> ~/.vim/filetype.vim
 
     wget -O php.vim.tar.gz "https://www.vim.org/scripts/download_script.php?src_id=8651"
-    tar zxvf php.vim.tar.gz && mv syntax/php.vim ~/.vim/syntax/php.vim
+    tar zxf php.vim.tar.gz && mv syntax/php.vim ~/.vim/syntax/php.vim
     rm -rf syntax php.vim.tar.gz
     echo "au BufNewFile,BufRead *.php setf php" >> ~/.vim/filetype.vim
 
@@ -738,13 +738,25 @@ EOF
 }
 
 install_htop() {
-    yum install -y ncurses-devel
-    wget_cache "https://bintray.com/htop/source/download_file?file_path=htop-${HTOP_VER}.tar.gz" "htop-${HTOP_VER}.tar.gz"
-    tar zxvf htop-${HTOP_VER}.tar.gz || return 255
+    wget_cache "https://github.com/htop-dev/htop/releases/download/${HTOP_VER}/htop-${HTOP_VER}.tar.xz" "htop-${HTOP_VER}.tar.xz"
+    tar -xvf htop-${HTOP_VER}.tar.xz || return 255
     cd htop-${HTOP_VER}
     ./configure
     make && make install
-    cd ..
+}
+
+install_git() {
+    yum install -y autoconf cpio expat-devel gettext-devel perl-ExtUtils-MakeMaker
+
+    wget_cache "https://github.com/git/git/archive/refs/tags/v${GIT_VER}.tar.gz" "git-${GIT_VER}.tar.gz"
+    tar xzf git-${GIT_VER}.tar.gz || return 255
+
+    cd git-${GIT_VER}
+    make configure && ./configure --prefix=/usr/local
+    make -j ${CPUS} && make install || make_result="fail"
+    if [[ $make_result == "fail" ]]; then
+        return 1
+    fi
 }
 
 install_ikev2() {
@@ -761,16 +773,14 @@ install_ikev2() {
 
 install_cmake() {
     wget_cache "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VER}/cmake-${CMAKE_VER}.tar.gz" "cmake-${CMAKE_VER}.tar.gz"
-    tar zxvf cmake-${CMAKE_VER}.tar.gz || return 255
+    tar zxf cmake-${CMAKE_VER}.tar.gz || return 255
 
     rpm -q cmake
     yum remove -y cmake
-    yum install -y gcc gcc-c++
 
     cd cmake-${CMAKE_VER}
     ./bootstrap
     make -j ${CPUS} && make install || make_result="fail"
-    cd ..
     if [[ $make_result == "fail" ]]; then
         return 1
     fi
@@ -780,7 +790,7 @@ install_acme() {
     if [ -f "/root/.acme.sh/acme.sh.env" ]; then
         echo_green "acme.sh 已安装，当前版本：$(/root/.acme.sh/acme.sh --version)"
         echo_blue "更新版本..."
-        acme.sh --upgrade
+        /root/.acme.sh/acme.sh --upgrade
     else
         ins_begin "acme.sh"
         yum install -y socat
@@ -971,29 +981,29 @@ EOF
 }
 
 install_python3() {
-    yum install -y epel-release zlib-devel readline-devel bzip2-devel ncurses-devel sqlite-devel gdbm-devel libffi-devel
+    yum install -y epel-release bzip2-devel gdbm-devel libffi-devel
 
     wget_cache "https://www.python.org/ftp/python/${PYTHON3_VER}/Python-${PYTHON3_VER}.tgz" "Python-${PYTHON3_VER}.tgz"
     tar xf Python-${PYTHON3_VER}.tgz || return 255
 
     cd Python-${PYTHON3_VER}
-    ./configure --prefix=/usr/local/python3 --enable-optimizations
+    ./configure --prefix=/usr/local/python3 --with-openssl=/usr/local/openssl
     make -j ${CPUS} && make install || make_result="fail"
-    cd ..
     if [[ $make_result == "fail" ]]; then
         return 1
     fi
 
     ln -sf /usr/local/python3/bin/python3 /usr/local/bin/python3
-    ln -sf /usr/local/python3/bin/2to3 /usr/local/bin/2to3
-    ln -sf /usr/local/python3/bin/idle3 /usr/local/bin/idle3
-    ln -sf /usr/local/python3/bin/pydoc3 /usr/local/bin/pydoc3
     ln -sf /usr/local/python3/bin/python3-config /usr/local/bin/python3-config
-    ln -sf /usr/local/python3/bin/pyvenv /usr/local/bin/pyvenv
 
     curl https://bootstrap.pypa.io/get-pip.py | python3
     ln -sf /usr/local/python3/bin/pip3 /usr/local/bin/pip3
-    pip3 install --upgrade pip
+    if [[ ${CHANGEYUM} == "Y" || ${CHANGEYUM} == "Y" ]]; then
+        python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --upgrade pip
+        pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+    else
+        pip3 install --upgrade pip
+    fi
     install_uwsgi
 
     if [[ ${INSSTACK} != "auto" ]]; then
@@ -1022,9 +1032,76 @@ install_nodejs() {
 }
 
 install_mysql() {
-    # wget https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
-    # rpm -Uvh mysql57-community-release-el7-11.noarch.rpm
-    # yum install -y mysql-community-server
+    rpm -qa | grep mysql
+    rpm -e mysql mysql-libs --nodeps
+    yum remove -y mysql-server mysql mysql-libs
+    yum install -y libaio numactl-libs
+    yum install -y devtoolset-9-gcc devtoolset-9-gcc-c++ devtoolset-9-binutils
+    source /opt/rh/devtoolset-9/enable
+    gcc -v
+
+    echo_yellow "选择安装方式(输入数字): "
+    read -r -p "(1)二进制文件/(2)rpm包/(3)编译安装: " MYSQL_INSTALL_TYPE
+    if [[ ${MYSQL_INSTALL_TYPE} == "1" ]]; then
+        wget_cache "https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal.tar.xz" "mysql-${MYSQL_VER}.tar.xz"
+        tar -xvf mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal.tar.xz
+        mv mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal /usr/local/mysql
+    elif [[ ${MYSQL_INSTALL_TYPE} == "2" ]]; then
+        cat > /etc/yum.repos.d/mysql-community.repo<<EOF
+[mysql-connectors-community]
+name=MySQL Connectors Community
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/mysql/yum/mysql-connectors-community-el7-$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.mysql.com/RPM-GPG-KEY-mysql
+
+[mysql-tools-community]
+name=MySQL Tools Community
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/mysql/yum/mysql-tools-community-el7-$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.mysql.com/RPM-GPG-KEY-mysql
+
+[mysql80-community]
+name=MySQL 8.0 Community Server
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/mysql/yum/mysql-8.0-community-el7-$basearch/
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.mysql.com/RPM-GPG-KEY-mysql
+EOF
+
+        yum module disable mysql
+        yum install mysql-community-server
+    else
+        get_module_ver "cmake"
+        if [ -z "${MODULE_VER}" ]; then
+            MODULE_NAME="CMake"
+            echo_yellow "编译 MySQL 源码需要使用到 CMake!"
+            ins_begin
+            install_cmake
+            if [[ $? == 1 ]]; then
+                return 1
+            fi
+            ins_end
+            MODULE_NAME="MySQL"
+        fi
+
+        wget_cache "https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-boost-${MYSQL_VER}.tar.gz" "mysql-boost-${MYSQL_VER}.tar.gz"
+        tar zxf mysql-boost-${MYSQL_VER}.tar.gz || return 255
+
+        cd mysql-${MYSQL_VER}
+        cmake . -DCMAKE_INSTALL_PREFIX=/usr/local/mysql \
+                -DDOWNLOAD_BOOST=0 \
+                -DWITH_BOOST=./boost \
+                -DFORCE_INSOURCE_BUILD=1 \
+                -DDEFAULT_CHARSET=utf8mb4 \
+                -DDEFAULT_COLLATION=utf8mb4_general_ci
+
+        make -j ${CPUS} && make install || make_result="fail"
+        if [[ $make_result == "fail" ]]; then
+            return 1
+        fi
+    fi
 
     if [[ ${INSSTACK} != "auto" ]]; then
         echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
@@ -1036,58 +1113,20 @@ install_mysql() {
     fi
     echo_green "MySQL ROOT 用户密码(请记下来): ${DBROOTPWD}"
 
-    wget_cache "http://www.sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz" "boost_1_59_0.tar.gz" "Boost"
-    tar zxvf boost_1_59_0.tar.gz || return 255
-
-    mv boost_1_59_0 /usr/local/boost
-    chown root:root -R /usr/local/boost
-
-    wget_cache "https://dev.mysql.com/get/Downloads/MySQL-5.7/mysql-${MYSQL_VER}.tar.gz" "mysql-${MYSQL_VER}.tar.gz"
-    tar zxvf mysql-${MYSQL_VER}.tar.gz || return 255
-
-    get_module_ver "cmake"
-    if [ -z "${MODULE_VER}" ]; then
-        MODULE_NAME="CMake"
-        echo_yellow "编译 MySQL 源码需要使用到 CMake!"
-        ins_begin
-        install_cmake
-        if [[ $? == 1 ]]; then
-            return 1
-        fi
-        ins_end
-        MODULE_NAME="MySQL"
-    fi
-
-    rpm -qa | grep mysql
-    rpm -e mysql mysql-libs --nodeps
-    yum remove -y mysql-server mysql mysql-libs
-    yum install -y ncurses-devel gcc gcc-c++ bison
-    yum -y remove boost-*
-
     MYSQLHOME=${INSHOME}/database/mysql
     rm -rf ${MYSQLHOME}
     rm -rf /usr/local/mysql
     rm -f /etc/my.cnf
+
     groupadd mysql
     useradd -r -g mysql -s /bin/false mysql
     mkdir -p ${MYSQLHOME}
     chown -R mysql:mysql ${MYSQLHOME}
 
-    cd mysql-${MYSQL_VER}
-    cmake . -DCMAKE_INSTALL_PREFIX=/usr/local/mysql \
-            -DDOWNLOAD_BOOST=1 \
-            -DWITH_BOOST=/usr/local/boost \
-            -DMYSQL_DATADIR="${MYSQLHOME}" \
-            -DDEFAULT_CHARSET=utf8mb4 \
-            -DDEFAULT_COLLATION=utf8mb4_general_ci
-    make -j ${CPUS} && make install || make_result="fail"
-    cd ..
-    if [[ $make_result == "fail" ]]; then
-        return 1
-    fi
-
     chgrp -R mysql /usr/local/mysql/.
     cp /usr/local/mysql/support-files/mysql.server /etc/init.d/mysqld
+    # sed -i 's/^\(basedir=\)$/\1\/usr\/local\/mysql/' /etc/init.d/mysqld
+    # sed -i 's/^\(datadir=\)$/\1\${MYSQLHOME}/' /etc/init.d/mysqld
     chmod +x /etc/init.d/mysqld
     chkconfig --add mysqld
     chkconfig mysqld on  # 设置开机启动
@@ -1285,10 +1324,18 @@ EOF
     fi
 }
 
+install_perl() {
+    wget_cache "https://www.cpan.org/src/5.0/perl-${PERL_VER}.tar.gz" "perl-${PERL_VER}.tar.gz"
+    tar -zxf perl-${PERL_VER}.tar.gz
+    cd perl-${PERL_VER}
+    ./Configure -des -Dprefix=/usr/local/perl
+    make && make install
+    ln -sf /usr/local/perl/bin/perl /usr/local/bin/perl
+}
+
 install_start-stop-daemon() {
     ins_begin "start-stop-daemon"
-# 1.17.27
-    yum install -y ncurses-devel
+
     wget_cache "http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_${STARTSTOPDAEMON_VER}.tar.xz" "start-stop-daemon_${STARTSTOPDAEMON_VER}.tar.xz" "start-stop-daemon"
     mkdir start-stop-daemon_${STARTSTOPDAEMON_VER}
     if ! tar -xf start-stop-daemon_${STARTSTOPDAEMON_VER}.tar.xz -C ./start-stop-daemon_${STARTSTOPDAEMON_VER} --strip-components 1; then
@@ -1300,9 +1347,20 @@ install_start-stop-daemon() {
     cd start-stop-daemon_${STARTSTOPDAEMON_VER}
     ./configure
     make && make install || echo "start-stop-daemon-${STARTSTOPDAEMON_VER} 源码编译失败，会影响 Nginx 服务！" >> /root/install-error.log
-    cd ..
 
     ins_end "start-stop-daemon"
+}
+
+install_openssl() {
+    wget_cache "https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz" "openssl-${OPENSSL_VER}.tar.gz" "OpenSSL"
+    tar xzf openssl-${OPENSSL_VER}.tar.gz || return 255
+    # mv openssl-${OPENSSL_VER} /usr/local/openssl
+    cd openssl-${OPENSSL_VER}
+    ./config --prefix=/usr/local/openssl --openssldir=/usr/local/openssl shared zlib enable-tls1_3 '-Wl,-rpath,$(LIBRPATH)'
+    make && make install
+    echo "/usr/local/openssl/lib" >> /etc/ld.so.conf
+    ldconfig -v
+    ln -sf /usr/local/openssl/bin/openssl /usr/local/bin/openssl
 }
 
 install_nginx() {
@@ -1327,36 +1385,53 @@ install_nginx() {
         MODULE_NAME="Nginx"
     fi
 
-    git clone https://github.com/google/ngx_brotli.git
-    cd ngx_brotli
-    git submodule update --init
-    cd ..
-
-    wget_cache "https://www.openssl.org/source/openssl-${OPENSSL_VER}.tar.gz" "openssl-${OPENSSL_VER}.tar.gz" "OpenSSL"
-    tar xzf openssl-${OPENSSL_VER}.tar.gz || return 255
-    mv openssl-${OPENSSL_VER} openssl
+    if [ ! -d /usr/local/src/ngx_brotli ]; then
+        cd /usr/local/src
+        git clone https://github.com/google/ngx_brotli.git || return 255
+        cd ngx_brotli
+        git submodule update --init
+    else
+        cd /usr/local/src/ngx_brotli
+        git config pull.rebase false
+        git pull
+        git submodule update --init
+    fi
 
     wget_cache "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" "nginx-${NGINX_VER}.tar.gz"
-    tar zxvf nginx-${NGINX_VER}.tar.gz || return 255
+    tar zxf nginx-${NGINX_VER}.tar.gz || return 255
     rm -rf /usr/local/nginx
 
     cd nginx-${NGINX_VER}
-    sed -i "s/${NGINX_VER}/8.8.8.8/g" src/core/nginx.h
+    # sed -i "s#${NGINX_VER}#0.0.0#g" src/core/nginx.h
+    # sed -i "s#\"NGINX\"#\"Apache\"#" src/core/nginx.h
+    # sed -i "s#\"nginx/\"#\"Apache/\"#" src/core/nginx.h
+    # sed -i "s#Server: nginx#Server: Apache#" src/http/ngx_http_header_filter_module.c
+    # sed -i "s#\"<hr><center>nginx<\/center>\"#\"<hr><center>Apache<\/center>\"#" src/http/ngx_http_special_response.c
+    # sed -i "s#server: nginx#server: Apache#" src/http/v2/ngx_http_v2_filter_module.c
+    sed -i "s#/.openssl/#/#g" auto/lib/openssl/conf
     ./configure \
-        --add-module=../ngx_brotli \
-        --with-openssl=../openssl \
-        --with-openssl-opt='enable-tls1_3 enable-weak-ssl-ciphers' \
+        --add-module=/usr/local/src/ngx_brotli \
+        --with-openssl=/usr/local/openssl \
+        --with-openssl-opt=enable-tls1_3 \
         --with-http_v2_module \
         --with-http_ssl_module \
         --with-http_gzip_static_module \
+        --with-http_realip_module \
+        --with-pcre \
+        --with-threads \
         --without-mail_pop3_module \
         --without-mail_imap_module \
         --without-mail_smtp_module
     make -j ${CPUS} && make install || make_result="fail" 
-    cd ..
     if [[ $make_result == "fail" ]]; then
         return 1
     fi
+    
+    # 升级不要 make install
+    # cp /usr/local/nginx/sbin/nginx /root/src/nginx.bak
+    # cp ./objs/nginx /usr/local/nginx/sbin/
+    # make upgrade
+    # nginx -V
 
     ln -sf /usr/local/nginx/sbin/nginx /usr/local/bin/nginx
     rm -f /usr/local/nginx/conf/nginx.conf
@@ -1568,14 +1643,6 @@ EOF
 }
 
 install_php() {
-    yum -y remove php* libzip
-    rpm -qa | grep php
-    rpm -e php-mysql php-cli php-gd php-common php --nodeps
-    yum install -y libmcrypt libmcrypt-devel mcrypt mhash oniguruma-devel libxslt libxslt-devel libxml2 libxml2-devel curl-devel libjpeg-devel libpng-devel freetype-devel libicu-devel
-
-    wget_cache "https://libzip.org/download/libzip-${LIBZIP_VER}.tar.gz" "libzip-${LIBZIP_VER}.tar.gz" "libzip"
-    tar zxvf libzip-${LIBZIP_VER}.tar.gz || return 255
-
     get_module_ver "cmake"
     if [ -z "${MODULE_VER}" ]; then
         MODULE_NAME="CMake"
@@ -1589,11 +1656,21 @@ install_php() {
         MODULE_NAME="PHP"
     fi
 
+    yum -y remove php* libzip
+    rpm -qa | grep php
+    rpm -e php-mysql php-cli php-gd php-common php --nodeps
+    yum install -y oniguruma-devel libmcrypt libmcrypt-devel mcrypt mhash libxslt libxslt-devel libxml2 libxml2-devel libjpeg-devel libpng-devel freetype-devel libicu-devel libwebp-devel libcurl-devel gd-devel libxslt-devel
+
+    # yun install ver: 6.8.2 
+    # yum -y install https://rpms.remirepo.net/enterprise/7/remi/x86_64/oniguruma5php-6.9.8-1.el7.remi.x86_64.rpm
+    # yum -y install https://rpms.remirepo.net/enterprise/7/remi/x86_64/oniguruma5php-devel-6.9.8-1.el7.remi.x86_64.rpm
+
+    wget_cache "https://libzip.org/download/libzip-${LIBZIP_VER}.tar.gz" "libzip-${LIBZIP_VER}.tar.gz" "libzip"
+    tar zxf libzip-${LIBZIP_VER}.tar.gz || return 255
     mkdir libzip-${LIBZIP_VER}/build 
     cd libzip-${LIBZIP_VER}/build
-    cmake ..
+    cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local/lib/libzip-${LIBZIP_VER} -DENABLE_OPENSSL=on -DENABLE_GNUTLS=off -DENABLE_MBEDTLS=off
     make && make install || make_result="fail"
-    cd ../..
     if [[ $make_result == "fail" ]]; then
         echo "make libzip failed!" >> /root/install-error.log
         return 1
@@ -1603,15 +1680,16 @@ install_php() {
     cat > /etc/ld.so.conf.d/php.local.conf<<EOF
 /usr/local/lib64
 /usr/local/lib
-/usr/lib
 /usr/lib64
+/usr/lib
 EOF
     ldconfig
 
     wget_cache "http://cn2.php.net/get/php-${PHP_VER}.tar.gz/from/this/mirror" "php-${PHP_VER}.tar.gz" "PHP"
-    tar zxvf php-${PHP_VER}.tar.gz || return 255
+    tar zxf php-${PHP_VER}.tar.gz || return 255
 
     cd php-${PHP_VER}
+    export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/usr/local/lib/libzip-${LIBZIP_VER}/lib64/pkgconfig"
     ./configure --prefix=/usr/local/php \
                 --with-config-file-path=/usr/local/php/etc \
                 --with-config-file-scan-dir=/usr/local/php/conf.d \
@@ -1619,28 +1697,27 @@ EOF
                 --with-fpm-group=nobody \
                 --with-mysqli=mysqlnd \
                 --with-pdo-mysql=mysqlnd \
-                --with-iconv-dir \
-                --with-freetype-dir=/usr/local/freetype \
-                --with-jpeg-dir \
-                --with-png-dir \
-                --with-zlib \
-                --with-libzip \
-                --with-libxml-dir=/usr \
+                --with-iconv \
+                --with-freetype=/usr/local/freetype \
+                --with-jpeg \
+                --with-webp \
+                --with-zip \
                 --with-curl \
-                --with-gd \
                 --with-openssl \
                 --with-mhash \
-                --with-xmlrpc \
-                --with-gettext \
+                # --with-xmlrpc \
+                # --with-gettext \
                 --with-xsl \
+                --with-zlib \
                 --with-pear \
                 --disable-rpath \
+                --enable-gd \
                 --enable-fpm \
                 --enable-xml \
                 --enable-bcmath \
                 --enable-shmop \
                 --enable-sysvsem \
-                --enable-inline-optimization \
+                # --enable-inline-optimization \
                 --enable-mysqlnd \
                 --enable-mbregex \
                 --enable-mbstring \
@@ -1651,13 +1728,11 @@ EOF
                 --enable-sockets \
                 --enable-soap \
                 --enable-opcache \
-                --enable-zip \
                 --enable-exif \
                 --enable-session
 
     #make ZEND_EXTRA_LIBS='-liconv' && make install
     make -j ${CPUS} && make install || make_result="fail"
-    cd ..
     if [[ $make_result == "fail" ]]; then
         return 1
     fi
@@ -1670,7 +1745,7 @@ EOF
     rm -f /usr/local/php/conf.d/*
 
     mkdir -p /usr/local/php/{etc,conf.d}
-    cp php-${PHP_VER}/php.ini-production /usr/local/php/etc/php.ini
+    cp ${CUR_DIR}/src/php-${PHP_VER}/php.ini-production /usr/local/php/etc/php.ini
 
     # php extensions
     sed -i "s/post_max_size =.*/post_max_size = 50M/g" /usr/local/php/etc/php.ini
@@ -1791,16 +1866,31 @@ EOF
     chkconfig --add php-fpm
     chkconfig php-fpm on
 
-    wget_cache "http://pecl.php.net/get/mcrypt-${MCRYPT_VER}.tgz" "mcrypt-${MCRYPT_VER}.tgz" "PHP-Mcrypt"
-    if ! tar xf mcrypt-${MCRYPT_VER}.tgz; then
-        echo "PHP-Mcrypt ${MCRYPT_VER} 模块源码包下载失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+    wget_cache "https://pecl.php.net/get/mcrypt-${PHP_MCRYPT_VER}.tgz" "mcrypt-${PHP_MCRYPT_VER}.tgz" "PHP-Mcrypt"
+    if ! tar xf mcrypt-${PHP_MCRYPT_VER}.tgz; then
+        echo "PHP-Mcrypt ${PHP_MCRYPT_VER} 模块源码包下载失败，PHP 服务将不安装此模块！" >> /root/install-error.log
     else
-        cd mcrypt-${MCRYPT_VER}
+        cd mcrypt-${PHP_MCRYPT_VER}
         phpize
         ./configure --with-php-config=/usr/local/php/bin/php-config
         make && make install
         echo "extension=mcrypt.so" >> /usr/local/php/etc/php.ini
-        cd ..
+    fi
+
+    yum install ImageMagick-devel  # ver: 6.9.10.68
+    # yum -y install https://rpms.remirepo.net/enterprise/7/remi/x86_64/ImageMagick6-6.9.12.77-1.el7.remi.x86_64.rpm
+    # yum -y install https://rpms.remirepo.net/enterprise/7/remi/x86_64/ImageMagick6-devel-6.9.12.77-1.el7.remi.x86_64.rpm
+    # https://rpms.remirepo.net/enterprise/7/remi/x86_64/ImageMagick7-7.1.0.62-1.el7.remi.x86_64.rpm
+    # https://rpms.remirepo.net/enterprise/7/remi/x86_64/ImageMagick7-devel-7.1.0.62-1.el7.remi.x86_64.rpm
+    wget_cache "https://pecl.php.net/get/imagick-${PHP_IMAGICK_VER}.tgz" "imagick-${PHP_IMAGICK_VER}.tgz" "PHP-Imagick"
+    if ! tar xf imagick-${PHP_IMAGICK_VER}.tgz; then
+        echo "PHP-Imagick ${PHP_IMAGICK_VER} 模块源码包下载失败，PHP 服务将不安装此模块！" >> /root/install-error.log
+    else
+        cd imagick-${PHP_IMAGICK_VER}
+        phpize
+        ./configure --with-php-config=/usr/local/php/bin/php-config
+        make && make install
+        echo "extension=imagick.so" >> /usr/local/php/etc/php.ini
     fi
 
     if [ -s /usr/local/redis/bin/redis-server ]; then
@@ -1813,7 +1903,6 @@ EOF
             ./configure --with-php-config=/usr/local/php/bin/php-config
             make && make install
             echo "extension=redis.so" >> /usr/local/php/etc/php.ini
-            cd ..
         fi
     fi
 
@@ -1832,7 +1921,6 @@ EOF
                 make && make install
                 echo "extension=mysql.so" >> /usr/local/php/etc/php.ini
                 # sed -i "s/^error_reporting = .*/error_reporting = E_ALL & ~E_NOTICE & ~E_DEPRECATED/g" /usr/local/php/etc/php.ini
-                cd ..
             fi
         fi
     fi
@@ -1841,20 +1929,29 @@ EOF
 install_redis() {
     yum -y install centos-release-scl
     yum -y install devtoolset-9-gcc devtoolset-9-gcc-c++ devtoolset-9-binutils
-    source /opt/rh/devtoolset-9/enable
-    gcc -v
+    scl enable devtoolset-9 bash
+    # 如果要长期使用gcc 9的话：
     # echo "source /opt/rh/devtoolset-9/enable" >> /etc/profile
-    # echo "source /opt/rh/devtoolset-9/enable" >> ~/.zshrc
+
+    wget_cache "http://download.redis.io/releases/redis-${REDIS_VER}.tar.gz" "redis-${REDIS_VER}.tar.gz"
+    tar zxf redis-${REDIS_VER}.tar.gz || return 255
 
     if [[ ${INSSTACK} != "auto" ]]; then
         echo_yellow "请输入 Redis 安全密码（直接回车将自动生成密码）"
         read -r -p "密码: " REDISPWD
+        echo_yellow "请输入 Redis 端口（直接回车将使用默认端口）"
+        read -r -p "端口: " REDISPORT
     fi
     if [[ -z ${REDISPWD} ]]; then
         echo_red "没有输入密码，将采用默认密码。"
         REDISPWD=$(echo "zsenClub#$RANDOM" | md5sum | cut -d " " -f 1)
     fi
+    if [[ -z ${REDISPORT} ]]; then
+        echo_red "没有输入端口，将采用默认端口(6379)。"
+        REDISPORT=6379
+    fi
     echo_green "Redis 安全密码(请记下来): ${REDISPWD}"
+    echo_green "Redis 端口(请记下来): ${REDISPORT}"
 
     REDISHOME=${INSHOME}/database/redis
     groupadd redis
@@ -1863,19 +1960,17 @@ install_redis() {
     mkdir -p ${REDISHOME}
     chown -R redis:redis ${REDISHOME}
 
-    wget_cache "http://download.redis.io/releases/redis-${REDIS_VER}.tar.gz" "redis-${REDIS_VER}.tar.gz"
-    tar zxvf redis-${REDIS_VER}.tar.gz || return 255
-
     cd redis-${REDIS_VER}
     make -j ${CPUS} && make PREFIX=/usr/local/redis install || make_result="fail"
-    cd ..
     if [[ $make_result == "fail" ]]; then
         return 1
     fi
+    # redis-check-rdb rdbfile
 
     cp redis-${REDIS_VER}/redis.conf  /usr/local/redis/etc/
     sed -i "s/daemonize no/daemonize yes/g" /usr/local/redis/etc/redis.conf
     sed -i "s/^# bind 127.0.0.1/bind 127.0.0.1/g" /usr/local/redis/etc/redis.conf
+    sed -i "s/port 6379/port ${REDISPORT}/g" /usr/local/redis/etc/redis.conf
     sed -i "s#^pidfile /var/run/redis_6379.pid#pidfile /usr/local/redis/run/redis.pid#g" /usr/local/redis/etc/redis.conf
     sed -i "s/^# requirepass.*/requirepass ${REDISPWD}/g" /usr/local/redis/etc/redis.conf
     sed -i "s#logfile \"\"#logfile ${INSHOME}/wwwlogs/redis.log#g" /usr/local/redis/etc/redis.conf
@@ -1883,9 +1978,6 @@ install_redis() {
 
     cat > /etc/rc.d/init.d/redis<<EOF
 #! /bin/bash
-#
-# redis - this script starts and stops the redis-server daemon
-#
 # chkconfig:    2345 80 90
 # description:  Redis is a persistent key-value database
 #
@@ -2015,10 +2107,10 @@ install_java() {
     MODULE_NAME="Tomcat"
     ins_begin
     wget_cache "https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VER}/bin/apache-tomcat-${TOMCAT_VER}.tar.gz" "apache-tomcat-${TOMCAT_VER}.tar.gz"
-    tar zxvf apache-tomcat-${TOMCAT_VER}.tar.gz || return 255
+    tar zxf apache-tomcat-${TOMCAT_VER}.tar.gz || return 255
 
     cd apache-tomcat-${TOMCAT_VER}/bin
-    tar zxvf commons-daemon-native.tar.gz
+    tar zxf commons-daemon-native.tar.gz
     cd commons-daemon-1.1.0-native-src/unix
     ./configure
     make || make_result="fail"
@@ -2262,7 +2354,7 @@ password      ${SMTPPASS}
 account default: acc1
 EOF
 
-        chmod 0600 /etc/msmtprc
+        chmod +r /etc/msmtprc
         echo '' >> /etc/mail.rc
         echo 'set sendmail=/usr/bin/msmtp' >> /etc/mail.rc
 
@@ -2422,6 +2514,17 @@ clean_install() {
     fi
 }
 
+init_install() {
+    yum -y update
+    yum -y upgrade
+
+    yum install -y firewalld firewalld-config wget gcc gcc-c++ make curl unzip zlib-devel curl-devel ncurses-devel readline-devel sqlite-devel centos-release-scl fontconfig mkfontscale
+
+    systemctl start firewalld
+    disable_selinux
+    check_hosts
+}
+
 OSNAME=$(cat /etc/*-release | grep -i ^name | awk 'BEGIN{FS="=\""} {print $2}' | awk '{print $1}')
 if [[ ${OSNAME} != "CentOS" ]]; then
     echo_red "此脚本仅适用于 CentOS 系统！"
@@ -2445,11 +2548,19 @@ if disk2=$(fdisk -l | grep vdb 2>/dev/null); then
     fi
 fi
 
+if [[ ${MemTotal} -lt 8192 ]]; then
+    echo_blue "内存过低，创建 SWAP 交换区..."
+    fallocate -l 4G /swap  # 获取要增加的2G的SWAP文件块
+    chown root:root /swap 
+    chmod 0600 /swap
+    mkswap /swap  # 创建SWAP文件
+    swapon /swap  # 激活SWAP文件
+    swapon -s  # 查看SWAP信息是否正确
+    # echo "/swap swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
+fi
+
 mkdir -p "${CUR_DIR}/src"
 cd "${CUR_DIR}/src" || exit
-
-yum -y update
-yum -y upgrade
 
 if ! grep /usr/local/bin ~/.bashrc 1>/dev/null; then
     echo "export PATH=/usr/local/bin:\$PATH" >> ~/.bashrc
@@ -2478,73 +2589,8 @@ fi
 EOF
 echo 'export PS1="\[\\033[1;34m\]#\[\\033[m\] \[\\033[36m\]\\u\[\\033[m\]@\[\\033[32m\]\h:\[\\033[33;1m\]\w\[\\033[m\] [bash-\\t] \`errcode=\$?; if [ \$errcode -gt 0 ]; then echo C:\[\\e[31m\]\$errcode\[\\e[0m\]; fi\` \\n\[\\e[31m\]\$\[\\e[0m\] "' >> /etc/profile
 
-
-if [[ ${INSSTACK} == "upgrade" ]]; then
-    echo_yellow "请选择要更新的服务?"
-    echo_blue "0 CMake"
-    echo_blue "1 Git"
-    echo_blue "2 Vim"
-    echo_blue "3 Python3"
-    echo_blue "4 Redis"
-    echo_blue "5 PHP"
-    echo_blue "6 MySQL"
-    echo_blue "7 NodeJS"
-    echo_blue "8 Nginx"
-    echo_blue "9 Tomcat"
-    read -r -p "请选择数字: " UPDATE
-
-    case "${UPDATE}" in
-        0)
-            MODULE_NAME="CMake"
-            ;;
-        1)
-            MODULE_NAME="Git"
-            ;;
-        2)
-            MODULE_NAME="Vim"
-            ;;
-        3)
-            MODULE_NAME="Python3"
-            ;;
-        4)
-            MODULE_NAME="Redis"
-            ;;
-        5)
-            MODULE_NAME="PHP"
-            ;;
-        6)
-            MODULE_NAME="MySQL"
-            ;;
-        7)
-            MODULE_NAME="NodeJS"
-            ;;
-        8)
-            MODULE_NAME="Nginx"
-            ;;
-        9)
-            MODULE_NAME="Tomcat"
-            ;;
-        *)
-            echo_red "所选服务错误，退出升级系统！"
-            exit 1
-            ;;
-    esac
-    upgrade_service
-    echo_green "测试功能，暂未实现！"
-
-    exit 0
-fi
-
-
-if [[ ${MemTotal} -lt 1024 ]]; then
-    echo_blue "内存过低，创建 SWAP 交换区..."
-    dd if=/dev/zero of=/swapfile bs=1M count=2048  # 获取要增加的2G的SWAP文件块
-    chmod 0600 /swapfile
-    mkswap /swapfile  # 创建SWAP文件
-    swapon /swapfile  # 激活SWAP文件
-    swapon -s  # 查看SWAP信息是否正确
-    # echo "/swapfile swap swap defaults 0 0" >> /etc/fstab  # 添加到fstab文件中让系统引导时自动启动
-fi
+yum-complete-transaction --cleanup-only
+yum history redo last
 
 echo_blue "========= 基本信息 ========="
 get_server_ip
@@ -2571,11 +2617,18 @@ fi
 echo_blue "系统安装目录：${INSHOME}"
 mkdir -p ${INSHOME}
 
-systemctl start firewalld
-disable_selinux
-check_hosts
+echo_yellow "更换yum源?"
+read -r -p "是(Y)/否(N): " CHANGEYUM
+if [[ ${CHANGEYUM} == "Y" || ${CHANGEYUM} == "Y" ]]; then
+    cp /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak
+    sed -e 's|^mirrorlist=|#mirrorlist=|g' \
+        -e 's|^#baseurl=http://mirror.centos.org|baseurl=https://mirrors.tuna.tsinghua.edu.cn|g' \
+        -i.bak \
+        /etc/yum.repos.d/CentOS-*.repo
+    yum makecache
+fi
 
-yum install -y wget gcc make curl unzip
+init_install
 
 if [[ ${INSSTACK} != "auto" ]]; then
     echo_yellow "是否调整时区?"
@@ -2612,7 +2665,7 @@ if [[ ${SETSSH} == "y" || ${SETSSH} == "Y" ]]; then
 fi
 
 
-for module in "ZSH" "Htop" "Git" "Vim" "CMake" "MySQL" "Redis" "Python3"  "PHP" "NodeJS" "Nginx" "Java"; do
+for module in "ZSH" "Vim" "Perl" "Openssl" "Htop" "Git" "CMake" "MySQL" "Redis" "Python3"  "PHP" "NodeJS" "Nginx" "Java"; do
     MODULE_NAME=${module}
     if [[ ${INSSTACK} != "auto" ]]; then
         show_ver
@@ -2645,6 +2698,22 @@ for module in "ZSH" "Htop" "Git" "Vim" "CMake" "MySQL" "Redis" "Python3"  "PHP" 
     fi
 done
 
+if [[ ${INSSTACK} != "auto" ]]; then
+    echo_yellow "是否安装 wkhtmltopdf?"
+    read -r -p "是(Y)/否(N): " INSTALL_WKHTMLTOPDF
+fi
+if [[ ${INSTALL_WKHTMLTOPDF} == "y" || ${INSTALL_WKHTMLTOPDF} == "Y" ]]; then
+    wget_cache "https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox-0.12.6-1.centos7.x86_64.rpm" "wkhtmltox-0.12.6-1.centos7.x86_64.rpm"
+    yum localinstall wkhtmltox-0.12.6-1.centos7.x86_64.rpm
+
+    mkdir -p /usr/share/fonts/chinese
+    mv /root/src/fonts/* /usr/share/fonts/chinese/
+    cd /usr/share/fonts/chinese
+    mkfontscale && mkfontdir && fc-cache -fv
+    chmod -R 755 /usr/share/fonts/chinese
+    cd $CUR_DIR
+    fc-list :lang=zh
+fi
 
 if [[ ${INSSTACK} != "auto" ]]; then
     echo_yellow "是否设置 SMTP 发送邮件?"

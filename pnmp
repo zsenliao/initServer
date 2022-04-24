@@ -1,5 +1,5 @@
 #!/bin/bash
-PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+PATH=/usr/local/bin:/usr/local/sbin:/bin:/sbin:/usr/bin:/usr/sbin:~/bin
 export PATH
 export LE_WORKING_DIR="/root/.acme.sh"
 
@@ -478,8 +478,8 @@ server
         # 单机部署可以不指定 ssl_session_ticket_key
         #ssl_session_ticket_key     ${DATAHOME}/wwwcert/${domain}/session_ticket.key;
 
-        ssl_protocols              TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
-        ssl_ciphers                TLS13-AES-256-GCM-SHA384:TLS13-CHACHA20-POLY1305-SHA256:TLS13-AES-128-GCM-SHA256:TLS13-AES-128-CCM-8-SHA256:TLS13-AES-128-CCM-SHA256:EECDH+CHACHA20:EECDH+CHACHA20-draft:EECDH+ECDSA+AES128:EECDH+aRSA+AES128:RSA+AES128:EECDH+ECDSA+AES256:EECDH+aRSA+AES256:RSA+AES256:EECDH+ECDSA+3DES:EECDH+aRSA+3DES:RSA+3DES:!MD5;
+        ssl_protocols              TLSv1.1 TLSv1.2 TLSv1.3;
+        ssl_ciphers                TLS13-AES-256-GCM-SHA384:TLS13-CHACHA20-POLY1305-SHA256:TLS13-AES-128-GCM-SHA256:TLS13-AES-128-CCM-8-SHA256:TLS13-AES-128-CCM-SHA256:EECDH+CHACHA20:EECDH+CHACHA20-draft:EECDH+ECDSA+AES128:EECDH+aRSA+AES128:RSA+AES128:EECDH+ECDSA+AES256:EECDH+aRSA+AES256:RSA+AES256:!MD5;
 
         ssl_prefer_server_ciphers  on;
 
@@ -491,8 +491,8 @@ server
         ssl_stapling               on;
         ssl_stapling_verify        on;
 
-        #resolver                   114.114.114.114 valid=300s;
-        #resolver_timeout           10s;
+        ssl_early_data             on;
+	    proxy_set_header           Early-Data \$ssl_early_data;
 
         ${al}
 
@@ -824,6 +824,52 @@ cert_menu() {
     esac
 }
 
+show_version() {
+    echo_info_blue "系统版本" "$(uname -a)"
+    echo_info_blue "系统内核" "$(uname -r)"
+    echo_info_blue "系统架构" "$(uname -m)"
+    echo_info_blue "系统环境" "$(env | grep -i "^PATH=")"
+
+    echo_blue "MySQL"
+    mysql --version
+
+    echo_blue "Redis"
+    redis-server --version
+
+    echo_blue "PHP"
+    php -v
+
+    echo_blue "Nginx"
+    nginx -V
+
+    echo_blue "Node"
+    node -v
+
+    echo_blue "Python"
+    python3 --version
+    pip3 --version
+    uwsgi --version
+
+    echo_blue "Java"
+    java -version
+    tomcat --version
+
+    echo_blue "OpenSSL"
+    openssl version
+
+    echo_blue "Perl"
+    perl -v
+
+    echo_blue "Htop"
+    htop --version
+
+    echo_blue "Git"
+    git --version
+
+    echo_blue "CMake"
+    cmake --version
+}
+
 case "${arg1}" in
     start)
         chown nobody:nobody -R ${DATAHOME}/wwwroot
@@ -877,6 +923,9 @@ case "${arg1}" in
     cert)
         cert_menu ${arg2}
         ;;
+    version)
+        show_version
+        ;;
     upadte)
         echo_blue "当前工具名称: ${MYNAME}"
         echo_blue "系统安装目录：${DATAHOME}"
@@ -886,7 +935,7 @@ case "${arg1}" in
         ${MYNAME} status
         ;;
     *)
-        echo_yellow "Usage: ${MYNAME} {start|stop|reload|restart|kill|status|test}"
+        echo_yellow "Usage: ${MYNAME} {start|stop|reload|restart|kill|status|test|version}"
         echo_yellow "Usage: ${MYNAME} {nginx|mysql|php-fpm|redis|uwsgi|tomcat} {start|stop|reload|restart|kill|status}"
         echo_yellow "Usage: ${MYNAME} vhost {add|list|del}"
         echo_yellow "Usage: ${MYNAME} cert {check|status|update|new|cron|auto}"
