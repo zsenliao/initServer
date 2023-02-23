@@ -22,14 +22,18 @@ NGINX_VER=1.23.3
 PHP_VER=8.2.2
 PHP_MCRYPT_VER=1.0.5
 PHP_IMAGICK_VER=3.7.0
-REDIS_VER=6.2.10
+PHP_REDIS_VER=5.3.7
+REDIS_VER=7.0.8  # 6.2.10
 MYSQL_VER=8.0.32
+MONGOD_VER=6.0
 TOMCAT_VER=9.0.30
 HTOP_VER=3.2.2
 LIBZIP_VER=1.9.2
 OPENSSL_VER=1.1.1t
-GIT_VER=2.38.1
+GIT_VER=2.39.2
 PERL_VER=5.34.1
+VIM_VER=9.0.1341
+WKHTMLTOX_VER=0.12.6-1
 
 get_server_ip() {
     local CURLTXT
@@ -57,11 +61,11 @@ check_hosts() {
     fi
 
     # 解决无法从 github.com 拉取文件导致安装失败的问题
-    echo "140.82.114.4 github.com" >> /etc/hosts
-    echo "199.232.69.194 github.global.ssl.fastly.net" >> /etc/hosts
-    echo "185.199.108.153 assets-cdn.github.com" >> /etc/hosts
-    echo "140.82.114.10 codeload.github.com" >> /etc/hosts
-    echo "185.199.108.133 raw.githubusercontent.com" >> /etc/hosts
+    if [ -f ${CUR_DIR}/src/hosts ]; then
+        cat ${CUR_DIR}/src/hosts >> /etc/hosts
+    elif [ wget https://raw.githubusercontent.com/521xueweihan/GitHub520/main/hosts -O hosts ]; then
+        cat ${CUR_DIR}/src/hosts >> /etc/hosts
+    fi
 }
 
 disable_selinux() {
@@ -125,12 +129,15 @@ ins_end() {
 show_ver() {
     echo ""
     echo_blue "=========================================================="
+    echo ""
     get_module_ver
+
+    MODULE_INS_VER=$(echo ${MODULE_NAME}_VER | tr '[:lower:]' '[:upper:]')
     if [ -n "${MODULE_VER}" ]; then
         echo_green "当前已安装 ${MODULE_NAME}, 版本：${MODULE_VER}"
-        echo_yellow "是否重新编译安装?"
+        echo_yellow "是否重新编译安装(版本: ${!MODULE_INS_VER})?"
     else
-        echo_yellow "是否安装 ${MODULE_NAME}?"
+        echo_yellow "是否安装 ${MODULE_NAME}(版本: ${!MODULE_INS_VER})?"
     fi
 }
 
@@ -149,13 +156,13 @@ wget_cache() {
     fi
 }
 
-set_time_zone() {
+setting_timezone() {
     echo_blue "设置时区..."
     rm -rf /etc/localtime
     ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 }
 
-set_host_name() {
+setting_hostname() {
     echo_blue "[+] 修改 Hostname..."
     if [[ ${INSSTACK} != "auto" ]]; then
         read -r -p "请输入 Hostname: " HOST_NAME
@@ -216,9 +223,9 @@ add_user() {
     # fi
 }
 
-ssh_setting() {
+setting_ssh() {
     echo_blue "[+] 修改 SSH 配置..."
-    cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+    \cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
 
     if [ -n "${USERNAME}" ]; then
         echo_blue "请打开一个新的命令窗口后，通过以下指令下载证书文件："
@@ -352,7 +359,7 @@ ssh_setting() {
             fi
         fi
 
-        cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
+        \cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config
         echo_blue "正在删除新增 SSH 端口..."
         firewall-cmd --remove-port="${SSHPORT}"/tcp --permanent
         echo_blue "正在恢复默认 SSH 端口..."
@@ -452,19 +459,19 @@ bindkey "^[[B" history-beginning-search-forward
 EOF
 
     if [[ "${USERNAME}" != "" ]]; then
-        cp ~/.zshrc /home/${USERNAME}/
+        \cp ~/.zshrc /home/${USERNAME}/
         chown ${USERNAME}:${USERNAME} /home/${USERNAME}/
     fi
 }
 
 install_vim() {
-    wget_cache "https://github.com/vim/vim/archive/master.tar.gz" "vim-master.tar.gz"
-    tar zxf vim-master.tar.gz || return 255
+    wget_cache "https://github.com/vim/vim/archive/refs/tags/v${VIM_VER}.tar.gz" "vim-${VIM_VER}.tar.gz"
+    tar zxf "vim-${VIM_VER}.tar.gz" || return 255
 
     yum uninstall -y vim
     yum remove -y vim
 
-    cd vim-master/src
+    cd "vim-${VIM_VER}/src"
     make -j && make install || make_result="fail"
     if [[ $make_result == "fail" ]]; then
         return 1
@@ -731,8 +738,8 @@ EOF
     echo "au BufNewFile,BufRead *.py setf python" >> ~/.vim/filetype.vim
 
     if [[ "${USERNAME}" != "" ]]; then
-        cp ~/.vimrc /home/${USERNAME}/
-        cp -r ~/.vim /home/${USERNAME}/
+        \cp ~/.vimrc /home/${USERNAME}/
+        \cp -r ~/.vim /home/${USERNAME}/
         chown ${USERNAME}:${USERNAME} /home/${USERNAME}/
     fi
 }
@@ -977,7 +984,6 @@ EOF
     chmod +x /etc/init.d/uwsgi
     chkconfig --add uwsgi
     chkconfig uwsgi on
-    service uwsgi start
 }
 
 install_python3() {
@@ -1043,35 +1049,18 @@ install_mysql() {
     echo_yellow "选择安装方式(输入数字): "
     read -r -p "(1)二进制文件/(2)rpm包/(3)编译安装: " MYSQL_INSTALL_TYPE
     if [[ ${MYSQL_INSTALL_TYPE} == "1" ]]; then
-        wget_cache "https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal.tar.xz" "mysql-${MYSQL_VER}.tar.xz"
-        tar -xvf mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal.tar.xz
-        mv mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal /usr/local/mysql
+        wget_cache "https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal.tar.xz" "mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal.tar.xz"
+        tar xf mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal.tar.xz
+        \cp -r mysql-${MYSQL_VER}-linux-glibc2.17-x86_64-minimal /usr/local/mysql
+        # mkdir /usr/local/mysql && tar xf mysql-${MYSQL_VER}.tar.xz -C /usr/local/mysql --strip-components 1
     elif [[ ${MYSQL_INSTALL_TYPE} == "2" ]]; then
-        cat > /etc/yum.repos.d/mysql-community.repo<<EOF
-[mysql-connectors-community]
-name=MySQL Connectors Community
-baseurl=https://mirrors.tuna.tsinghua.edu.cn/mysql/yum/mysql-connectors-community-el7-$basearch/
-enabled=1
-gpgcheck=1
-gpgkey=https://repo.mysql.com/RPM-GPG-KEY-mysql
-
-[mysql-tools-community]
-name=MySQL Tools Community
-baseurl=https://mirrors.tuna.tsinghua.edu.cn/mysql/yum/mysql-tools-community-el7-$basearch/
-enabled=1
-gpgcheck=1
-gpgkey=https://repo.mysql.com/RPM-GPG-KEY-mysql
-
-[mysql80-community]
-name=MySQL 8.0 Community Server
-baseurl=https://mirrors.tuna.tsinghua.edu.cn/mysql/yum/mysql-8.0-community-el7-$basearch/
-enabled=1
-gpgcheck=1
-gpgkey=https://repo.mysql.com/RPM-GPG-KEY-mysql
-EOF
-
-        yum module disable mysql
-        yum install mysql-community-server
+        wget https://dev.mysql.com/get/mysql80-community-release-el7-7.noarch.rpm
+        yum localinstall mysql80-community-release-el7-7.noarch.rpm
+        yum clean all && yum makecache
+        yum -y install mysql-community-server
+        echo_yellow "记住默认密码，并按以下提示操作:"
+        grep password /var/log/mysqld.log
+        mysql_secure_installation
     else
         get_module_ver "cmake"
         if [ -z "${MODULE_VER}" ]; then
@@ -1103,33 +1092,11 @@ EOF
         fi
     fi
 
-    if [[ ${INSSTACK} != "auto" ]]; then
-        echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
-        read -r -p "密码: " DBROOTPWD
-    fi
-    if [[ ${DBROOTPWD} == "" ]]; then
-        echo_red "没有输入密码，将采用默认密码。"
-        DBROOTPWD="zsen@Club#$RANDOM"
-    fi
-    echo_green "MySQL ROOT 用户密码(请记下来): ${DBROOTPWD}"
-
     MYSQLHOME=${INSHOME}/database/mysql
     rm -rf ${MYSQLHOME}
     rm -rf /usr/local/mysql
     rm -f /etc/my.cnf
-
-    groupadd mysql
-    useradd -r -g mysql -s /bin/false mysql
     mkdir -p ${MYSQLHOME}
-    chown -R mysql:mysql ${MYSQLHOME}
-
-    chgrp -R mysql /usr/local/mysql/.
-    cp /usr/local/mysql/support-files/mysql.server /etc/init.d/mysqld
-    # sed -i 's/^\(basedir=\)$/\1\/usr\/local\/mysql/' /etc/init.d/mysqld
-    # sed -i 's/^\(datadir=\)$/\1\${MYSQLHOME}/' /etc/init.d/mysqld
-    chmod +x /etc/init.d/mysqld
-    chkconfig --add mysqld
-    chkconfig mysqld on  # 设置开机启动
 
     cat > /etc/my.cnf<<EOF
 [client]
@@ -1179,10 +1146,10 @@ innodb_log_buffer_size = 8M
 innodb_flush_log_at_trx_commit = 1
 innodb_lock_wait_timeout = 50
 
-character-set-server = utf8
-collation-server = utf8_general_ci  # 不区分大小写
-# collation-server =  utf8_bin  # 区分大小写
-# collation-server = utf8_unicode_ci  # 比 utf8_general_ci 更准确
+character-set-server = utf8mb4
+collation-server = utf8mb4_general_ci  # 不区分大小写
+# collation-server =  utf8mb4_bin  # 区分大小写
+# collation-server = utf8mb4_unicode_ci  # 比 utf8mb4_general_ci 更准确
 
 [mysqldump]
 quick
@@ -1277,37 +1244,59 @@ EOF
         sed -i "s#^performance_schema_max_table_instances.*#performance_schema_max_table_instances = 10000#" /etc/my.cnf
     fi
 
-    /usr/local/mysql/bin/mysqld --initialize-insecure --basedir=/usr/local/mysql --datadir=${MYSQLHOME} --user=mysql
-    # --initialize 会生成一个随机密码(~/.mysql_secret)，--initialize-insecure 不会生成密码
+    if [[ ${MYSQL_INSTALL_TYPE} != "2" ]]; then
+        if [[ ${INSSTACK} != "auto" ]]; then
+            echo_yellow "请输入 MySQL ROOT 用户密码（直接回车将自动生成密码）"
+            read -r -p "密码: " DBROOTPWD
+        fi
+        if [[ ${DBROOTPWD} == "" ]]; then
+            echo_red "没有输入密码，将采用默认密码。"
+            DBROOTPWD="zsen@Club#$RANDOM"
+        fi
+        echo_green "MySQL ROOT 用户密码(请记下来): ${DBROOTPWD}"
 
-    cat > /etc/ld.so.conf.d/mysql.conf<<EOF
-/usr/local/mysql/lib
-/usr/local/lib
-EOF
-    ldconfig
-    ln -sf /usr/local/mysql/lib/mysql /usr/lib/mysql
-    ln -sf /usr/local/mysql/include/mysql /usr/include/mysql
+        groupadd mysql
+        useradd -r -g mysql -s /bin/false mysql
+        chgrp -R mysql /usr/local/mysql/.
+
+        \cp /usr/local/mysql/support-files/mysql.server /etc/init.d/mysqld
+        # sed -i 's/^\(basedir=\)$/\1\/usr\/local\/mysql/' /etc/init.d/mysqld
+        # sed -i 's/^\(datadir=\)$/\1\${MYSQLHOME}/' /etc/init.d/mysqld
+        chmod +x /etc/init.d/mysqld
+        chkconfig --add mysqld
+        chkconfig mysqld on  # 设置开机启动
+
+        echo "/usr/local/mysql/lib" >> /etc/ld.so.conf.d/local.conf
+        ldconfig
+
+        # ln -sf /usr/local/mysql/lib/mysql /usr/lib/mysql
+        ln -sf /usr/local/mysql/include/mysql /usr/include/mysql
+        ln -sf /usr/local/mysql/bin/mysql /usr/local/bin/mysql
+        ln -sf /usr/local/mysql/bin/mysqladmin /usr/local/bin/mysqladmin
+        ln -sf /usr/local/mysql/bin/mysqldump /usr/local/bin/mysqldump
+        ln -sf /usr/local/mysql/bin/myisamchk /usr/local/bin/myisamchk
+        ln -sf /usr/local/mysql/bin/mysqld_safe /usr/local/bin/mysqld_safe
+        ln -sf /usr/local/mysql/bin/mysqlcheck /usr/local/bin/mysqlcheck
+        ln -sf /usr/local/mysql/bin/mysqld /user/local/bin/mysqld
+
+        /usr/local/mysql/bin/mysqld --initialize-insecure --basedir=/usr/local/mysql --datadir=${MYSQLHOME} --user=mysql
+        # --initialize 会生成一个随机密码(~/.mysql_secret)，--initialize-insecure 不会生成密码
+
+        /etc/init.d/mysqld start
+    fi
 
     if [ -d "/proc/vz" ]; then
         ulimit -s unlimited
     fi
 
-    ln -sf /usr/local/mysql/bin/mysql /usr/local/bin/mysql
-    ln -sf /usr/local/mysql/bin/mysqladmin /usr/local/bin/mysqladmin
-    ln -sf /usr/local/mysql/bin/mysqldump /usr/local/bin/mysqldump
-    ln -sf /usr/local/mysql/bin/myisamchk /usr/local/bin/myisamchk
-    ln -sf /usr/local/mysql/bin/mysqld_safe /usr/local/bin/mysqld_safe
-    ln -sf /usr/local/mysql/bin/mysqlcheck /usr/local/bin/mysqlcheck
-
-    /etc/init.d/mysqld start
-
+    chown -R mysql:mysql ${MYSQLHOME}
     # 设置数据库密码
-    /usr/local/mysql/bin/mysqladmin -u root password "${DBROOTPWD}"
-    # /usr/local/mysql/bin/mysql -e "grant all privileges on *.* to root@'127.0.0.1' identified by \"${DBROOTPWD}\" with grant option;"
-    # /usr/local/mysql/bin/mysql -e "grant all privileges on *.* to root@'localhost' identified by \"${DBROOTPWD}\" with grant option;"
-    # /usr/local/mysql/bin/mysql -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${DBROOTPWD}');"
-    # /usr/local/mysql/bin/mysql -e "UPDATE mysql.user SET authentication_string=PASSWORD('${DBROOTPWD}') WHERE User='root';"
-    /usr/local/mysql/bin/mysql -e "FLUSH PRIVILEGES;" -uroot -p${DBROOTPWD}
+    mysqladmin -u root password "${DBROOTPWD}"
+    # mysql -e "grant all privileges on *.* to root@'127.0.0.1' identified by \"${DBROOTPWD}\" with grant option;"
+    # mysql -e "grant all privileges on *.* to root@'localhost' identified by \"${DBROOTPWD}\" with grant option;"
+    # mysql -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('${DBROOTPWD}');"
+    # mysql -e "UPDATE mysql.user SET authentication_string=PASSWORD('${DBROOTPWD}') WHERE User='root';"
+    mysql -e "FLUSH PRIVILEGES;" -uroot -p${DBROOTPWD}
 
     if [[ ${INSSTACK} != "auto" ]]; then
         echo_yellow "是否生成 ~/.my.cnf（如选择是，在命令行可以不用密码进入MySQL）? "
@@ -1358,7 +1347,7 @@ install_openssl() {
     cd openssl-${OPENSSL_VER}
     ./config --prefix=/usr/local/openssl --openssldir=/usr/local/openssl shared zlib enable-tls1_3 '-Wl,-rpath,$(LIBRPATH)'
     make && make install
-    echo "/usr/local/openssl/lib" >> /etc/ld.so.conf
+    echo "/usr/local/openssl/lib" >> /etc/ld.so.conf.d/local.conf
     ldconfig -v
     ln -sf /usr/local/openssl/bin/openssl /usr/local/bin/openssl
 }
@@ -1382,21 +1371,20 @@ install_nginx() {
             return 1
         fi
         ins_end
-        MODULE_NAME="Nginx"
     fi
 
-    if [ ! -d /usr/local/src/ngx_brotli ]; then
-        cd /usr/local/src
+    if [ ! -d "${CUR_DIR}/src/ngx_brotli" ]; then
         git clone https://github.com/google/ngx_brotli.git || return 255
         cd ngx_brotli
         git submodule update --init
     else
-        cd /usr/local/src/ngx_brotli
+        cd ${CUR_DIR}/src/ngx_brotli
         git config pull.rebase false
         git pull
         git submodule update --init
     fi
 
+    MODULE_NAME="Nginx"
     wget_cache "https://nginx.org/download/nginx-${NGINX_VER}.tar.gz" "nginx-${NGINX_VER}.tar.gz"
     tar zxf nginx-${NGINX_VER}.tar.gz || return 255
     rm -rf /usr/local/nginx
@@ -1408,10 +1396,10 @@ install_nginx() {
     # sed -i "s#Server: nginx#Server: Apache#" src/http/ngx_http_header_filter_module.c
     # sed -i "s#\"<hr><center>nginx<\/center>\"#\"<hr><center>Apache<\/center>\"#" src/http/ngx_http_special_response.c
     # sed -i "s#server: nginx#server: Apache#" src/http/v2/ngx_http_v2_filter_module.c
-    sed -i "s#/.openssl/#/#g" auto/lib/openssl/conf
+    # sed -i "s#/.openssl/#/#g" auto/lib/openssl/conf
     ./configure \
-        --add-module=/usr/local/src/ngx_brotli \
-        --with-openssl=/usr/local/openssl \
+        --add-module=../ngx_brotli \
+        --with-openssl=../openssl-${OPENSSL_VER} \
         --with-openssl-opt=enable-tls1_3 \
         --with-http_v2_module \
         --with-http_ssl_module \
@@ -1426,7 +1414,7 @@ install_nginx() {
     if [[ $make_result == "fail" ]]; then
         return 1
     fi
-    
+
     # 升级不要 make install
     # cp /usr/local/nginx/sbin/nginx /root/src/nginx.bak
     # cp ./objs/nginx /usr/local/nginx/sbin/
@@ -1659,7 +1647,7 @@ install_php() {
     yum -y remove php* libzip
     rpm -qa | grep php
     rpm -e php-mysql php-cli php-gd php-common php --nodeps
-    yum install -y oniguruma-devel libmcrypt libmcrypt-devel mcrypt mhash libxslt libxslt-devel libxml2 libxml2-devel libjpeg-devel libpng-devel freetype-devel libicu-devel libwebp-devel libcurl-devel gd-devel libxslt-devel
+    yum install -y oniguruma-devel libmcrypt libmcrypt-devel mcrypt mhash libxslt libxslt-devel libxml2 libxml2-devel libjpeg-devel libpng-devel freetype-devel libicu-devel libwebp-devel libcurl-devel gd-devel libxslt-devel ImageMagick-devel
 
     # yun install ver: 6.8.2 
     # yum -y install https://rpms.remirepo.net/enterprise/7/remi/x86_64/oniguruma5php-6.9.8-1.el7.remi.x86_64.rpm
@@ -1669,27 +1657,21 @@ install_php() {
     tar zxf libzip-${LIBZIP_VER}.tar.gz || return 255
     mkdir libzip-${LIBZIP_VER}/build 
     cd libzip-${LIBZIP_VER}/build
-    cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local/lib/libzip-${LIBZIP_VER} -DENABLE_OPENSSL=on -DENABLE_GNUTLS=off -DENABLE_MBEDTLS=off
+    cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local/libzip -DENABLE_OPENSSL=on -DENABLE_GNUTLS=off -DENABLE_MBEDTLS=off
     make && make install || make_result="fail"
     if [[ $make_result == "fail" ]]; then
         echo "make libzip failed!" >> /root/install-error.log
         return 1
     fi
     make_result=""
-
-    cat > /etc/ld.so.conf.d/php.local.conf<<EOF
-/usr/local/lib64
-/usr/local/lib
-/usr/lib64
-/usr/lib
-EOF
+    echo "/usr/local/libzip/lib64" >> /etc/ld.so.conf.d/local.conf
     ldconfig
 
     wget_cache "http://cn2.php.net/get/php-${PHP_VER}.tar.gz/from/this/mirror" "php-${PHP_VER}.tar.gz" "PHP"
     tar zxf php-${PHP_VER}.tar.gz || return 255
 
     cd php-${PHP_VER}
-    export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/usr/local/lib/libzip-${LIBZIP_VER}/lib64/pkgconfig"
+    export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/usr/local/libzip/lib64/pkgconfig"
     ./configure --prefix=/usr/local/php \
                 --with-config-file-path=/usr/local/php/etc \
                 --with-config-file-scan-dir=/usr/local/php/conf.d \
@@ -1705,8 +1687,6 @@ EOF
                 --with-curl \
                 --with-openssl \
                 --with-mhash \
-                # --with-xmlrpc \
-                # --with-gettext \
                 --with-xsl \
                 --with-zlib \
                 --with-pear \
@@ -1717,7 +1697,6 @@ EOF
                 --enable-bcmath \
                 --enable-shmop \
                 --enable-sysvsem \
-                # --enable-inline-optimization \
                 --enable-mysqlnd \
                 --enable-mbregex \
                 --enable-mbstring \
@@ -1745,7 +1724,7 @@ EOF
     rm -f /usr/local/php/conf.d/*
 
     mkdir -p /usr/local/php/{etc,conf.d}
-    cp ${CUR_DIR}/src/php-${PHP_VER}/php.ini-production /usr/local/php/etc/php.ini
+    \cp ${CUR_DIR}/src/php-${PHP_VER}/php.ini-production /usr/local/php/etc/php.ini
 
     # php extensions
     sed -i "s/post_max_size =.*/post_max_size = 50M/g" /usr/local/php/etc/php.ini
@@ -1847,7 +1826,7 @@ EOF
     sed -i "s#pm.min_spare_servers.*#pm.min_spare_servers = $(($MemTotal/2/40))#" /usr/local/php/etc/php-fpm.conf
     sed -i "s#pm.max_spare_servers.*#pm.max_spare_servers = $(($MemTotal/2/20))#" /usr/local/php/etc/php-fpm.conf
 
-    cp php-${PHP_VER}/sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
+    \cp php-${PHP_VER}/sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm
     sed -i '20 s/^/log_success_msg(){\n\tprintf "%-58s \\033[32m[ %s ]\\033[0m\\n" "\$@"\n}\nlog_failure_msg(){\n\tprintf "%-58s \\033[31m[ %s ]\\033[0m\\n" "\$@"\n}\nlog_warning_msg(){\n\tprintf "%-58s \\033[33m[ %s ]\\033[0m\\n" "\$@"\n}\n/' /etc/init.d/php-fpm
     sed -i 's/echo -n "/title="/g'  /etc/init.d/php-fpm
     sed -i 's/php-fpm "/php-fpm: "/g'  /etc/init.d/php-fpm
@@ -1877,7 +1856,7 @@ EOF
         echo "extension=mcrypt.so" >> /usr/local/php/etc/php.ini
     fi
 
-    yum install ImageMagick-devel  # ver: 6.9.10.68
+    # yum install ImageMagick-devel  # ver: 6.9.10.68
     # yum -y install https://rpms.remirepo.net/enterprise/7/remi/x86_64/ImageMagick6-6.9.12.77-1.el7.remi.x86_64.rpm
     # yum -y install https://rpms.remirepo.net/enterprise/7/remi/x86_64/ImageMagick6-devel-6.9.12.77-1.el7.remi.x86_64.rpm
     # https://rpms.remirepo.net/enterprise/7/remi/x86_64/ImageMagick7-7.1.0.62-1.el7.remi.x86_64.rpm
@@ -1894,11 +1873,11 @@ EOF
     fi
 
     if [ -s /usr/local/redis/bin/redis-server ]; then
-        wget_cache "https://github.com/phpredis/phpredis/archive/master.zip" "phpredis-master.zip" "PHP-Redis"
-        if ! unzip phpredis-master.zip; then
+        wget_cache "https://github.com/phpredis/phpredis/archive/refs/tags/${PHP_REDIS_VER}.tar.gz" "phpredis-${PHP_REDIS_VER}.tar.gz" "PHP-Redis"
+        if ! tar zxf phpredis-${PHP_REDIS_VER}.tar.gz; then
             echo "PHP-Redis 模块源码包下载失败，PHP 服务将不安装此模块！" >> /root/install-error.log
         else
-            cd phpredis-master
+            cd phpredis-${PHP_REDIS_VER}
             phpize
             ./configure --with-php-config=/usr/local/php/bin/php-config
             make && make install
@@ -1929,7 +1908,7 @@ EOF
 install_redis() {
     yum -y install centos-release-scl
     yum -y install devtoolset-9-gcc devtoolset-9-gcc-c++ devtoolset-9-binutils
-    scl enable devtoolset-9 bash
+    source /opt/rh/devtoolset-9/enable
     # 如果要长期使用gcc 9的话：
     # echo "source /opt/rh/devtoolset-9/enable" >> /etc/profile
 
@@ -1967,7 +1946,7 @@ install_redis() {
     fi
     # redis-check-rdb rdbfile
 
-    cp redis-${REDIS_VER}/redis.conf  /usr/local/redis/etc/
+    \cp redis-${REDIS_VER}/redis.conf  /usr/local/redis/etc/
     sed -i "s/daemonize no/daemonize yes/g" /usr/local/redis/etc/redis.conf
     sed -i "s/^# bind 127.0.0.1/bind 127.0.0.1/g" /usr/local/redis/etc/redis.conf
     sed -i "s/port 6379/port ${REDISPORT}/g" /usr/local/redis/etc/redis.conf
@@ -2097,6 +2076,43 @@ EOF
 
     ln -sf /usr/local/redis/bin/redis-server /usr/local/bin/redis-server
     ln -sf /usr/local/redis/bin/redis-cli /usr/local/bin/redis-cli
+}
+
+install_mongod() {
+    cat > /etc/yum.repos.d/mongodb-org-${MONGOD_VER}.repo<<EOF
+[mongodb-org-6.0]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/${MONGOD_VER}/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-${MONGOD_VER}.asc
+EOF
+    yum install -y mongodb-org
+    systemctl start mongod.service
+    systemctl enable mongod
+
+    # firewall-cmd --zone=public --add-port=27017/tcp --permanent # mongodb默认端口号
+    # firewall-cmd --reload  # 重新加载防火墙
+    # firewall-cmd --zone=public --query-port=27017/tcp # 查看端口号是否开放成功，输出yes开放成功，no则失败
+
+    # # admin数据库
+    # > use admin
+    # switched to db admin
+    # > db.createUser({ user:"root", pwd:"123456", roles:["root"] })
+    # Successfully added user: { "user" : "root", "roles" : [ "root" ] }
+}
+
+install_wkhtmltopdf() {
+    wget_cache "https://github.com/wkhtmltopdf/packaging/releases/download/${WKHTMLTOX_VER}/wkhtmltox-${WKHTMLTOX_VER}.centos7.x86_64.rpm" "wkhtmltox-${WKHTMLTOX_VER}.centos7.x86_64.rpm"
+    yum localinstall wkhtmltox-${WKHTMLTOX_VER}.centos7.x86_64.rpm
+
+    mkdir -p /usr/share/fonts/chinese
+    mv /root/src/fonts/* /usr/share/fonts/chinese/
+    cd /usr/share/fonts/chinese
+    mkfontscale && mkfontdir && fc-cache -fv
+    chmod -R 755 /usr/share/fonts/chinese
+    cd $CUR_DIR
+    fc-list :lang=zh
 }
 
 install_java() {
@@ -2266,10 +2282,11 @@ EOF
     MODULE_NAME="Java"
 }
 
-setting_sendmail_conf() {
+setting_smtp() {
     # 修改默认邮件传输代理：alternatives --config mta
     # 查看邮件传输代理是否修改成功：alternatives --display mta
 
+    echo_blue "提示：阿里云/腾讯云服务器封掉了 25 端口，默认方式发送邮件不成功(可以申请解封)"
     echo_yellow "请输入邮箱 smtp 信息:"
     read -r -p "smtp 地址: " SMTPHOST
     read -r -p "smtp 端口: " SMTPPORT
@@ -2376,7 +2393,7 @@ install_shellMonitor() {
         echo_yellow "已存在 shellMonitor, 是否覆盖安装?"
         read -r -p "是(Y)/否(N): " REINSMONITOR
         if [[ ${REINSMONITOR} == "y" || ${REINSMONITOR} == "Y" ]]; then
-            cp /usr/local/shellMonitor/config.sh ./shellMonitor.config.bak
+            \cp /usr/local/shellMonitor/config.sh ./shellMonitor.config.bak
             echo_blue "删除旧 shellMonitor..."
             rm -rf /usr/local/shellMonitor
             sed -i '/shellMonitor/d' /var/spool/cron/root
@@ -2422,30 +2439,13 @@ register_management-tool() {
             fi
         done
     fi
-    wget "https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp" -O /usr/local/bin/${MYNAME}
+    if [ -f "$CUR_DIR/src/pnmp" ]; then
+        \cp $CUR_DIR/src/pnmp /usr/local/bin/${MYNAME}
+    else
+        wget "https://raw.githubusercontent.com/zsenliao/initServer/master/pnmp" -O /usr/local/bin/${MYNAME}
+    fi
     sed -i "s|/data|${INSHOME}|g" /usr/local/bin/${MYNAME}
     chmod +x /usr/local/bin/${MYNAME}
-}
-
-upgrade_service() {
-    echo_blue "升级 ${MODULE_NAME}..."
-
-    get_module_ver
-    if [ -n "${MODULE_VER}" ]; then
-        echo_green "系统当前版本：${MODULE_VER}"
-    else
-        echo_green "系统当前未安装 ${MODULE_NAME}"
-    fi
-    echo_yellow "请输入您要升级的版本(请注意：只需要输入包括数字、小数点的版本号)"
-    read -r -p "输入: " UPDATE_VER
-
-    echo_green "${MODULE_NAME} 版本将由 ${MODULE_VER} 升级到 ${UPDATE_VER}"
-    echo ""
-    echo_yellow "请按任意键开始升级..."
-    OLDCONFIG=$(stty -g)
-    stty -icanon -echo min 1 time 0
-    dd count=1 2>/dev/null
-    stty "${OLDCONFIG}"
 }
 
 clean_install_files() {
@@ -2515,6 +2515,9 @@ clean_install() {
 }
 
 init_install() {
+    yum-complete-transaction --cleanup-only
+    yum history redo last
+
     yum -y update
     yum -y upgrade
 
@@ -2523,6 +2526,38 @@ init_install() {
     systemctl start firewalld
     disable_selinux
     check_hosts
+
+    if ! grep /usr/local/bin ~/.bashrc 1>/dev/null; then
+        echo "export PATH=/usr/local/bin:\$PATH" >> ~/.bashrc
+    fi
+    if ! grep vim ~/.bashrc 1>/dev/null; then
+        echo "alias vi=\"vim\"" >> ~/.bashrc
+    fi
+    cat >> ~/.bashrc << EOF
+
+#export HISTCONTROL=erasedups  # 忽略全部重复命令的历史记录，默认是 ignoredups 忽略连续重复的
+export HISTIGNORE="pwd:ls:ll:l:"
+export EDITOR=/usr/bin/local/vim
+
+alias ll="ls -alhF"
+alias la="ls -A"
+alias l="ls -CF"
+alias lbys="ls -alhS"
+alias lbyt="ls -alht"
+alias cls="clear"
+alias grep="grep --color"
+
+if [[ $- == *i* ]]; then
+    bind '"\e[A": history-search-backward'
+    bind '"\e[B": history-search-forward'
+fi
+EOF
+    echo 'export PS1="\[\\033[1;34m\]#\[\\033[m\] \[\\033[36m\]\\u\[\\033[m\]@\[\\033[32m\]\h:\[\\033[33;1m\]\w\[\\033[m\] [bash-\\t] \`errcode=\$?; if [ \$errcode -gt 0 ]; then echo C:\[\\e[31m\]\$errcode\[\\e[0m\]; fi\` \\n\[\\e[31m\]\$\[\\e[0m\] "' >> /etc/profile
+    echo "/usr/local/lib64" >> /etc/ld.so.conf.d/local.conf
+    echo "/usr/local/lib" >> /etc/ld.so.conf.d/local.conf
+    echo "/usr/lib64" >> /etc/ld.so.conf.d/local.conf
+    echo "/usr/lib" >> /etc/ld.so.conf.d/local.conf
+    ldconfig
 }
 
 OSNAME=$(cat /etc/*-release | grep -i ^name | awk 'BEGIN{FS="=\""} {print $2}' | awk '{print $1}')
@@ -2548,7 +2583,7 @@ if disk2=$(fdisk -l | grep vdb 2>/dev/null); then
     fi
 fi
 
-if [[ ${MemTotal} -lt 8192 ]]; then
+if [[ ${MemTotal} -lt 3072 ]]; then
     echo_blue "内存过低，创建 SWAP 交换区..."
     fallocate -l 4G /swap  # 获取要增加的2G的SWAP文件块
     chown root:root /swap 
@@ -2560,37 +2595,7 @@ if [[ ${MemTotal} -lt 8192 ]]; then
 fi
 
 mkdir -p "${CUR_DIR}/src"
-cd "${CUR_DIR}/src" || exit
-
-if ! grep /usr/local/bin ~/.bashrc 1>/dev/null; then
-    echo "export PATH=/usr/local/bin:\$PATH" >> ~/.bashrc
-fi
-if ! grep vim ~/.bashrc 1>/dev/null; then
-    echo "alias vi=\"vim\"" >> ~/.bashrc
-fi
-cat >> ~/.bashrc << EOF
-
-#export HISTCONTROL=erasedups  # 忽略全部重复命令的历史记录，默认是 ignoredups 忽略连续重复的
-export HISTIGNORE="pwd:ls:ll:l:"
-export EDITOR=/usr/bin/local/vim
-
-alias ll="ls -alhF"
-alias la="ls -A"
-alias l="ls -CF"
-alias lbys="ls -alhS"
-alias lbyt="ls -alht"
-alias cls="clear"
-alias grep="grep --color"
-
-if [[ $- == *i* ]]; then
-    bind '"\e[A": history-search-backward'
-    bind '"\e[B": history-search-forward'
-fi
-EOF
-echo 'export PS1="\[\\033[1;34m\]#\[\\033[m\] \[\\033[36m\]\\u\[\\033[m\]@\[\\033[32m\]\h:\[\\033[33;1m\]\w\[\\033[m\] [bash-\\t] \`errcode=\$?; if [ \$errcode -gt 0 ]; then echo C:\[\\e[31m\]\$errcode\[\\e[0m\]; fi\` \\n\[\\e[31m\]\$\[\\e[0m\] "' >> /etc/profile
-
-yum-complete-transaction --cleanup-only
-yum history redo last
+cd "${CUR_DIR}/src" || exit 255
 
 echo_blue "========= 基本信息 ========="
 get_server_ip
@@ -2601,6 +2606,7 @@ echo_info "硬件平台/处理器类型/内核版本" "$(uname -i)($(uname -m)) 
 echo_info "CPU 型号(物理/逻辑/每个核数)" "$(grep 'model name' /proc/cpuinfo|uniq|awk -F : '{print $2}'|sed 's/^[ \t]*//g'|sed 's/ \+/ /g') ($(grep 'physical id' /proc/cpuinfo|sort|uniq|wc -l) / ${CPUS} / $(grep 'cpu cores' /proc/cpuinfo|uniq|awk '{print $4}'))"
 echo_info "服务器时间" "$(date '+%Y年%m月%d日 %H:%M:%S')"
 echo_info "防火墙状态" "$(firewall-cmd --stat)"
+echo_info "当前目录" "$(pwd)"
 echo ""
 echo_blue "========= 硬盘信息 ========="
 df -h
@@ -2620,7 +2626,7 @@ mkdir -p ${INSHOME}
 echo_yellow "更换yum源?"
 read -r -p "是(Y)/否(N): " CHANGEYUM
 if [[ ${CHANGEYUM} == "Y" || ${CHANGEYUM} == "Y" ]]; then
-    cp /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak
+    \cp /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak
     sed -e 's|^mirrorlist=|#mirrorlist=|g' \
         -e 's|^#baseurl=http://mirror.centos.org|baseurl=https://mirrors.tuna.tsinghua.edu.cn|g' \
         -i.bak \
@@ -2630,42 +2636,20 @@ fi
 
 init_install
 
-if [[ ${INSSTACK} != "auto" ]]; then
-    echo_yellow "是否调整时区?"
-    read -r -p "是(Y)/否(N): " SETTIMEZONE
-fi
-if [[ ${SETTIMEZONE} == "y" || ${SETTIMEZONE} == "Y" ]]; then
-    set_time_zone
-fi
 
 if [[ ${INSSTACK} != "auto" ]]; then
-    echo_yellow "是否修改 HostName?"
-    read -r -p "是(Y)/否(N): " SETHOST
-else
-    SETHOST="Y"
-fi
-if [[ ${SETHOST} == "y" || ${SETHOST} == "Y" ]]; then
-    set_host_name
-fi
-
-if [[ ${INSSTACK} != "auto" ]]; then
-    echo_yellow "是否添加用户?"
-    read -r -p "是(Y)/否(N): " ADDUSER
-fi
-if [[ ${ADDUSER} == "y" || ${ADDUSER} == "Y" ]]; then
-    add_user
-fi
-
-if [[ ${INSSTACK} != "auto" ]]; then
-    echo_yellow "是否修改 SSH 配置?"
-    read -r -p "是(Y)/否(N): " SETSSH
-fi
-if [[ ${SETSSH} == "y" || ${SETSSH} == "Y" ]]; then
-    ssh_setting
+    for setting in "Timezone" "Hostname" "User" "SSH" "SMTP"; do
+        echo_yellow "是否设置 ${setting}?"
+        read -r -p "是(Y)/否(N): " SETTING_INPUT
+        if [[ ${SETTING_INPUT} == "y" || ${SETTING_INPUT} == "Y" ]]; then
+            setting_name=$(echo $setting | tr '[:upper:]' '[:lower:]')
+            setting_${setting_name}
+        fi
+    done
 fi
 
 
-for module in "ZSH" "Vim" "Perl" "Openssl" "Htop" "Git" "CMake" "MySQL" "Redis" "Python3"  "PHP" "NodeJS" "Nginx" "Java"; do
+for module in "ZSH" "Vim" "Perl" "Openssl" "Htop" "Git" "CMake" "MySQL" "Redis" "Mongod" "Python3" "PHP" "Nginx" "NodeJS" "Java" "wkhtmltopdf"; do
     MODULE_NAME=${module}
     if [[ ${INSSTACK} != "auto" ]]; then
         show_ver
@@ -2698,31 +2682,6 @@ for module in "ZSH" "Vim" "Perl" "Openssl" "Htop" "Git" "CMake" "MySQL" "Redis" 
     fi
 done
 
-if [[ ${INSSTACK} != "auto" ]]; then
-    echo_yellow "是否安装 wkhtmltopdf?"
-    read -r -p "是(Y)/否(N): " INSTALL_WKHTMLTOPDF
-fi
-if [[ ${INSTALL_WKHTMLTOPDF} == "y" || ${INSTALL_WKHTMLTOPDF} == "Y" ]]; then
-    wget_cache "https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox-0.12.6-1.centos7.x86_64.rpm" "wkhtmltox-0.12.6-1.centos7.x86_64.rpm"
-    yum localinstall wkhtmltox-0.12.6-1.centos7.x86_64.rpm
-
-    mkdir -p /usr/share/fonts/chinese
-    mv /root/src/fonts/* /usr/share/fonts/chinese/
-    cd /usr/share/fonts/chinese
-    mkfontscale && mkfontdir && fc-cache -fv
-    chmod -R 755 /usr/share/fonts/chinese
-    cd $CUR_DIR
-    fc-list :lang=zh
-fi
-
-if [[ ${INSSTACK} != "auto" ]]; then
-    echo_yellow "是否设置 SMTP 发送邮件?"
-    echo_blue "提示：阿里云/腾讯云服务器封掉了 25 端口，默认方式发送邮件不成功(可以申请解封)"
-    read -r -p "是(Y)/否(N): " SETSMTP
-fi
-if [[ ${SETSMTP} == "y" || ${SETSMTP} == "Y" ]]; then
-    setting_sendmail_conf
-fi
 
 if [[ ${INSSTACK} != "auto" ]]; then
     echo_yellow "是否安装 shellMonitor 系统监控工具?"
